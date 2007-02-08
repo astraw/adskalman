@@ -19,20 +19,23 @@ class KalmanFilter:
         if len(initial_x)!=self.ss:
             raise ValueError( 'initial_x must be a vector with ss components' )
         
-    def step(self,y=None):
-        xhatminus, Pminus = self.step1__calculate_a_priori()
-        return self.step2__calculate_a_posteri(xhatminus, Pminus)
+    def step(self,y=None,isinitial=False):
+        xhatminus, Pminus = self.step1__calculate_a_priori(isinitial=isinitial)
+        return self.step2__calculate_a_posteri(xhatminus, Pminus, y=y)
     
-    def step1__calculate_a_priori(self):
+    def step1__calculate_a_priori(self,isinitial=False):
         dot = numpy.dot # shorthand
         ############################################
         #          update state-space
         
         # compute a priori estimate of statespace
-        xhatminus = dot(self.A,self.xhat_k1)
-
-        # compute a priori estimate of errors
-        Pminus = dot(dot(self.A,self.P_k1),self.AT)+self.Q
+        if not isinitial:
+            xhatminus = dot(self.A,self.xhat_k1)
+            # compute a priori estimate of errors
+            Pminus = dot(dot(self.A,self.P_k1),self.AT)+self.Q
+        else:
+            xhatminus = self.xhat_k1
+            Pminus = self.P_k1
 
         return xhatminus, Pminus
 
@@ -79,3 +82,49 @@ class KalmanFilter:
         self.P_k1 = P
 
         return xhat, P
+
+def kalman_smoother(y,A,C,Q,R,init_x,init_V):
+    """
+
+    Axes are swapped relative to Kevin Murphy's example, because in
+    all my data, time is the first dimension."""
+    
+    def smooth_update(xsmooth_future,Vsmooth_future,xfilt,Vfilt,Vfilt_future,A,Q):
+        dot = numpy.dot
+        inv = numpy.linalg.inv
+        
+        xpred = dot(A,xfilt)
+        Vpred = dot(A,numpy.dot(Vfilt,A.T)) + Q
+        J = dot(Vfilt,numpy.dot(A.T,inv(Vpred))) # smoother gain matrix
+        xsmooth = xfilt + dot(J, xsmooth_future-xpred)
+        Vsmooth = Vfilt + dot(J,dot(Vsmooth_future-Vpred,J.T))
+        return xsmooth, Vsmooth
+        
+    T, os = y.shape
+    ss = len(A)
+
+    kfilt = KalmanFilter(A,C,Q,R,init_x,init_V)
+    # Forward pass
+    xfilt = numpy.zeros((T,ss))
+    Vfilt = numpy.zeros((T,ss,ss))
+
+    for i in range(T):
+        isinitial = i==0
+        xfilt_i, Vfilt_i = kfilt.step(y[i],isinitial=isinitial)
+        xfilt[i] = xfilt_i
+        Vfilt[i] = Vfilt_i
+        
+    xsmooth = numpy.array(xfilt,copy=True)
+    Vsmooth = numpy.array(Vfilt,copy=True)
+
+    for t in range(T-2,-1,-1):
+        xsmooth_t, Vsmooth_t = smooth_update(xsmooth[t+1,:],
+                                             Vsmooth[t+1,:,:],
+                                             xfilt[t,:],
+                                             Vfilt[t,:,:],
+                                             Vfilt[t,:,:],
+                                             A,Q)
+        xsmooth[t,:] = xsmooth_t
+        Vsmooth[t,:,:] = Vsmooth_t
+    
+    return xsmooth, Vsmooth
