@@ -83,11 +83,30 @@ class KalmanFilter:
 
         return xhat, P
 
-def kalman_smoother(y,A,C,Q,R,init_x,init_V):
+def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None):
     """
 
-    Axes are swapped relative to Kevin Murphy's example, because in
-    all my data, time is the first dimension."""
+    arguments
+    ---------
+    y - observations
+    A - process update matrix
+    C - state-to-observation matrix
+    Q - process covariance matrix
+    R - observation covariance matrix
+    init_x - initial state
+    init_V - initial error estimate
+    valid_data_idx - (optional) indices to rows of y that are valid (None if all data valid)
+
+    returns
+    -------
+    xsmooth - smoothed state estimates
+    Vsmooth - smoothed error estimates
+
+    Kalman smoother based on Kevin Murphy's Kalman toolbox for
+    MATLAB(tm).
+
+    N.B. Axes are swapped relative to Kevin Murphy's example, because
+    in all my data, time is the first dimension."""
     
     def smooth_update(xsmooth_future,Vsmooth_future,xfilt,Vfilt,Vfilt_future,A,Q):
         dot = numpy.dot
@@ -110,7 +129,11 @@ def kalman_smoother(y,A,C,Q,R,init_x,init_V):
 
     for i in range(T):
         isinitial = i==0
-        xfilt_i, Vfilt_i = kfilt.step(y[i],isinitial=isinitial)
+        if i in valid_data_idx:
+            y_i = y[i]
+        else:
+            y_i = None
+        xfilt_i, Vfilt_i = kfilt.step(y=y_i,isinitial=isinitial)
         xfilt[i] = xfilt_i
         Vfilt[i] = Vfilt_i
         
