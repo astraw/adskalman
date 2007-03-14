@@ -57,6 +57,8 @@ class KalmanFilter:
         # With each skipped data point, measurement uncertainty doubles,
         # which means variance goes up 4x.
 
+        # XXX should re-visit this when frames are dropped!
+        
         factor = 2.0**self.n_skipped**2.0
         this_R = factor*self.R
 
