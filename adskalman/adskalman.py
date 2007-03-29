@@ -131,10 +131,11 @@ def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None):
 
     for i in range(T):
         isinitial = i==0
-        if i in valid_data_idx:
+        if (valid_data_idx is None) or (i in valid_data_idx):
             y_i = y[i]
         else:
             y_i = None
+
         xfilt_i, Vfilt_i = kfilt.step(y=y_i,isinitial=isinitial)
         xfilt[i] = xfilt_i
         Vfilt[i] = Vfilt_i
@@ -151,5 +152,5 @@ def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None):
                                              A,Q)
         xsmooth[t,:] = xsmooth_t
         Vsmooth[t,:,:] = Vsmooth_t
-    
+
     return xsmooth, Vsmooth
