@@ -1,5 +1,13 @@
 import numpy
 
+# For treatment of missing data, see:
+#
+# http://www.quantlet.com/mdstat/scripts/xfg/html/xfghtmlnode92.html
+#
+# Shumway, R.H. & Stoffer, D.S. (1982). An approach to time series
+# smoothing and forecasting using the EM algorithm. Journal of Time
+# Series Analysis, 3, 253-264. http://www.stat.pitt.edu/stoffer/em.pdf
+
 class KalmanFilter:
     def __init__(self,A,C,Q,R,initial_x,initial_P):
         self.A = A # process update model
@@ -13,8 +21,6 @@ class KalmanFilter:
         self.os = self.C.shape[0] # ndim in observation space
         self.AT = self.A.T
         self.CT = self.C.T
-
-        self.n_skipped = 0
 
         if len(initial_x)!=self.ss:
             raise ValueError( 'initial_x must be a vector with ss components' )
@@ -49,22 +55,9 @@ class KalmanFilter:
         ############################################
         #          incorporate observation
 
-        if y is None:
-            self.n_skipped += 1
-        else:
-            self.n_skipped = 0
-
-        # With each skipped data point, measurement uncertainty doubles,
-        # which means variance goes up 4x.
-
-        # XXX should re-visit this when frames are dropped!
-        
-        factor = 2.0**self.n_skipped**2.0
-        this_R = factor*self.R
-
         # calculate Kalman gain
         Knumerator = dot(Pminus,self.CT)
-        Kdenominator = dot(dot(self.C,Pminus),self.CT)+this_R
+        Kdenominator = dot(dot(self.C,Pminus),self.CT)+self.R
         K = dot(Knumerator,inv(Kdenominator))
 
         # calculate a posteri state estimate
