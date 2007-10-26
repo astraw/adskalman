@@ -52,26 +52,29 @@ class KalmanFilter:
         dot = numpy.dot # shorthand
         inv = numpy.linalg.inv
         
-        ############################################
-        #          incorporate observation
-
-        # calculate Kalman gain
-        Knumerator = dot(Pminus,self.CT)
-        Kdenominator = dot(dot(self.C,Pminus),self.CT)+self.R
-        K = dot(Knumerator,inv(Kdenominator))
-
-        # calculate a posteri state estimate
         if y is not None:
+            ############################################
+            #          incorporate observation
+
+            # calculate a posteri state estimate
+            
+            # calculate Kalman gain
+            Knumerator = dot(Pminus,self.CT)
+            Kdenominator = dot(dot(self.C,Pminus),self.CT)+self.R
+            K = dot(Knumerator,inv(Kdenominator))
+            
             residuals = y-dot(self.C,xhatminus) # error/innovation
             xhat = xhatminus+dot(K, residuals)
-        else:
-            xhat = xhatminus
             
-        one_minus_KC = numpy.eye(self.ss)-dot(K,self.C)
+            one_minus_KC = numpy.eye(self.ss)-dot(K,self.C)
         
-        # compute a posteri estimate of errors
-        P = dot(one_minus_KC,Pminus)
-
+            # compute a posteri estimate of errors
+            P = dot(one_minus_KC,Pminus)
+        else:
+            # no observation
+            xhat = xhatminus
+            P = Pminus
+            
         # this step (k) becomes next step's prior (k-1)
         self.xhat_k1 = xhat
         self.P_k1 = P
