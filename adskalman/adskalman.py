@@ -83,6 +83,7 @@ class KalmanFilter:
 
 def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None):
     """
+Rauch-Tung-Striebel (RTS) smoother
 
     arguments
     ---------
