@@ -25,9 +25,9 @@ class KalmanFilter:
         if len(initial_x)!=self.ss:
             raise ValueError( 'initial_x must be a vector with ss components' )
         
-    def step(self,y=None,isinitial=False):
+    def step(self,y=None,isinitial=False,full_output=False):
         xhatminus, Pminus = self.step1__calculate_a_priori(isinitial=isinitial)
-        return self.step2__calculate_a_posteri(xhatminus, Pminus, y=y)
+        return self.step2__calculate_a_posteri(xhatminus, Pminus, y=y, full_output=full_output)
     
     def step1__calculate_a_priori(self,isinitial=False):
         dot = numpy.dot # shorthand
@@ -45,7 +45,7 @@ class KalmanFilter:
 
         return xhatminus, Pminus
 
-    def step2__calculate_a_posteri(self,xhatminus,Pminus,y=None):
+    def step2__calculate_a_posteri(self,xhatminus,Pminus,y=None,full_output=False):
         """
         y represents the observation for this time-step
         """
@@ -78,12 +78,50 @@ class KalmanFilter:
         # this step (k) becomes next step's prior (k-1)
         self.xhat_k1 = xhat
         self.P_k1 = P
+        if full_output:
+            # calculate loglik and Pfuture
+            raise NotImplementedError("")
+        else:
+            return xhat, P
 
-        return xhat, P
+def kalman_filter(y,A,C,Q,R,init_x,init_V,full_output=False):
+    if full_output:
+        raise NotImplementedError("")
+    
+    y = numpy.asarray(y)
+    
+    T, os = y.shape
+    ss = len(A)
 
-def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None):
-    """
-Rauch-Tung-Striebel (RTS) smoother
+    kfilt = KalmanFilter(A,C,Q,R,init_x,init_V)
+    # Forward pass
+    xfilt = numpy.zeros((T,ss))
+    Vfilt = numpy.zeros((T,ss,ss))
+
+    for i in range(T):
+        isinitial = i==0
+        y_i = y[i]
+
+        if full_output:
+            xfilt_i, Vfilt_i, VVfilt_i, loglik_i = kfilt.step(y=y_i,
+                                                              isinitial=isinitial,
+                                                              full_output=True)
+            VVfilt[i] = VVfilt_i
+            loglik[i] = loglik_i
+        else:
+            xfilt_i, Vfilt_i = kfilt.step(y=y_i,
+                                          isinitial=isinitial,
+                                          full_output=False)
+        xfilt[i] = xfilt_i
+        Vfilt[i] = Vfilt_i
+    if full_output:
+        1/0
+    else:
+        return xfilt,Vfilt
+        
+
+def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None,full_output=False):
+    """Rauch-Tung-Striebel (RTS) smoother
 
     arguments
     ---------
@@ -100,6 +138,8 @@ Rauch-Tung-Striebel (RTS) smoother
     -------
     xsmooth - smoothed state estimates
     Vsmooth - smoothed error estimates
+    VVsmooth - (only when full_output==True)
+    loglik - (only when full_output==True)
 
     Kalman smoother based on Kevin Murphy's Kalman toolbox for
     MATLAB(tm).
@@ -107,7 +147,7 @@ Rauch-Tung-Striebel (RTS) smoother
     N.B. Axes are swapped relative to Kevin Murphy's example, because
     in all my data, time is the first dimension."""
     
-    def smooth_update(xsmooth_future,Vsmooth_future,xfilt,Vfilt,Vfilt_future,A,Q):
+    def smooth_update(xsmooth_future,Vsmooth_future,xfilt,Vfilt,Vfilt_future,VVfilt_future,A,Q):
         dot = numpy.dot
         inv = numpy.linalg.inv
         
@@ -116,7 +156,10 @@ Rauch-Tung-Striebel (RTS) smoother
         J = dot(Vfilt,numpy.dot(A.T,inv(Vpred))) # smoother gain matrix
         xsmooth = xfilt + dot(J, xsmooth_future-xpred)
         Vsmooth = Vfilt + dot(J,dot(Vsmooth_future-Vpred,J.T))
-        return xsmooth, Vsmooth
+        VVsmooth_future = VVfilt_future + numpy.dot(
+            (Vsmooth_future - Vfilt_future),
+            numpy.dot(inv(Vfilt_future),VVfilt_future))
+        return xsmooth, Vsmooth, VVsmooth_future
         
     T, os = y.shape
     ss = len(A)
@@ -125,6 +168,7 @@ Rauch-Tung-Striebel (RTS) smoother
     # Forward pass
     xfilt = numpy.zeros((T,ss))
     Vfilt = numpy.zeros((T,ss,ss))
+    VVfilt = numpy.zeros((T,ss,ss))
 
     for i in range(T):
         isinitial = i==0
@@ -133,21 +177,33 @@ Rauch-Tung-Striebel (RTS) smoother
         else:
             y_i = None
 
-        xfilt_i, Vfilt_i = kfilt.step(y=y_i,isinitial=isinitial)
+        if full_output:
+            xfilt_i, Vfilt_i, VVfilt_i, loglik_i = kfilt.step(y=y_i,isinitial=isinitial,full_output=True)
+            VVfilt[i] = VVfilt_i
+            loglik[i] = loglik_i
+        else:
+            xfilt_i, Vfilt_i = kfilt.step(y=y_i,isinitial=isinitial,full_output=False)
+            
         xfilt[i] = xfilt_i
         Vfilt[i] = Vfilt_i
         
     xsmooth = numpy.array(xfilt,copy=True)
     Vsmooth = numpy.array(Vfilt,copy=True)
+    VVsmooth = numpy.array(Vfilt,copy=True)
 
     for t in range(T-2,-1,-1):
-        xsmooth_t, Vsmooth_t = smooth_update(xsmooth[t+1,:],
-                                             Vsmooth[t+1,:,:],
-                                             xfilt[t,:],
-                                             Vfilt[t,:,:],
-                                             Vfilt[t,:,:],
-                                             A,Q)
+        xsmooth_t, Vsmooth_t, VVsmooth_t = smooth_update(xsmooth[t+1,:],
+                                                         Vsmooth[t+1,:,:],
+                                                         xfilt[t,:],
+                                                         Vfilt[t,:,:],
+                                                         Vfilt[t,:,:],
+                                                         VVfilt[t,:,:],
+                                                         A,Q)
         xsmooth[t,:] = xsmooth_t
         Vsmooth[t,:,:] = Vsmooth_t
+        VVsmooth[t,:,:] = VVsmooth_t
 
-    return xsmooth, Vsmooth
+    if full_output:
+        return xsmooth, Vsmooth, VVsmooth, loglik
+    else:
+        return xsmooth, Vsmooth
