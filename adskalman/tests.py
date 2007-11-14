@@ -1,6 +1,7 @@
 import unittest
 import adskalman
 import numpy
+import scipy.io
 
 class TestKalman(unittest.TestCase):
     def test_kalman1(self,time_steps=100,Qsigma=0.1,Rsigma=0.5):
@@ -46,6 +47,44 @@ class TestKalman(unittest.TestCase):
         xs = numpy.array(xs)
         xhats = numpy.array(xhats)
         # XXX some comparison between xs and xhats
+        
+    def test_filt_KPM(self):
+        kpm=scipy.io.loadmat('kpm_results')
+        # process model
+        A = numpy.array([[1, 0, 1, 0],
+                         [0, 1, 0, 1],
+                         [0, 0, 1,  0],
+                         [0, 0, 0,  1]],
+                        dtype=numpy.float64)
+        # observation model
+        C = numpy.array([[1, 0, 0, 0],
+                         [0, 1, 0, 0]],
+                        dtype=numpy.float64)
+        ss=4; os=2
+        # process covariance
+        Q = 0.1*numpy.eye(ss)
+        # measurement covariance
+        R = 1.0*numpy.eye(os)
+        initx = numpy.array([10, 10, 1, 0],dtype=numpy.float64)
+        initV = 10.0*numpy.eye(ss)
+
+        x = kpm['x'].T
+        y = kpm['y'].T
+
+        
+        import warnings
+        warnings.warn("not testing loglik implementation")
+        # Because the code paths differ slightly, test both full_output conditions.
+
+##        xfilt, Vfilt, VVfilt, loglik = adskalman.kalman_filter(y, A, C, Q, R, initx, initV,
+##                                                               full_output=True)
+        xfilt, Vfilt = adskalman.kalman_filter(y, A, C, Q, R, initx, initV)
+        assert numpy.allclose(xfilt.T,kpm['xfilt'])
+        assert numpy.allclose(Vfilt.T,kpm['Vfilt'])
+
+        xsmooth, Vsmooth = adskalman.kalman_smoother(y,A,C,Q,R,initx,initV)
+        assert numpy.allclose(xsmooth.T,kpm['xsmooth'])
+        assert numpy.allclose(Vsmooth.T,kpm['Vsmooth'])
 
 def get_test_suite():
     ts=unittest.TestSuite([unittest.makeSuite(TestKalman),
