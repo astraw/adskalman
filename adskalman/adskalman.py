@@ -8,6 +8,25 @@ import numpy
 # smoothing and forecasting using the EM algorithm. Journal of Time
 # Series Analysis, 3, 253-264. http://www.stat.pitt.edu/stoffer/em.pdf
 
+def gaussian_prob(x,m,C,use_log=False):
+    m = numpy.atleast_1d(m)
+    N=1
+    assert len(x.shape)==1
+    d = x.shape[0]
+    M = numpy.dot(m.T,numpy.ones((1,N))) # replicate mean across columns
+    denom = (2*numpy.pi)**(d/2)*numpy.sqrt(abs(numpy.linalg.det(C)))
+    mahal = numpy.sum(((x-M).T*numpy.linalg.inv(C)) * (x-M).T,axis=32) # unknown axis
+    if numpy.any( mahal<0 ):
+        raise ValueError("mahal < 0 => C is not psd")
+    if use_log:
+        p = -0.5*mahal - numpy.log(denom)
+    else:
+        eps=1e-16
+        import warnings
+        warnings.warn('made up definition for eps')
+        p = numpy.exp( -0.5*mahal ) / (denom+eps)
+    return p
+
 class KalmanFilter:
     def __init__(self,A,C,Q,R,initial_x,initial_P):
         self.A = A # process update model
@@ -24,16 +43,16 @@ class KalmanFilter:
 
         if len(initial_x)!=self.ss:
             raise ValueError( 'initial_x must be a vector with ss components' )
-        
+
     def step(self,y=None,isinitial=False,full_output=False):
         xhatminus, Pminus = self.step1__calculate_a_priori(isinitial=isinitial)
         return self.step2__calculate_a_posteri(xhatminus, Pminus, y=y, full_output=full_output)
-    
+
     def step1__calculate_a_priori(self,isinitial=False):
         dot = numpy.dot # shorthand
         ############################################
         #          update state-space
-        
+
         # compute a priori estimate of statespace
         if not isinitial:
             xhatminus = dot(self.A,self.xhat_k1)
@@ -51,45 +70,45 @@ class KalmanFilter:
         """
         dot = numpy.dot # shorthand
         inv = numpy.linalg.inv
-        
+
         if y is not None:
             ############################################
             #          incorporate observation
 
             # calculate a posteri state estimate
-            
+
             # calculate Kalman gain
             Knumerator = dot(Pminus,self.CT)
             Kdenominator = dot(dot(self.C,Pminus),self.CT)+self.R
             K = dot(Knumerator,inv(Kdenominator))
-            
+
             residuals = y-dot(self.C,xhatminus) # error/innovation
             xhat = xhatminus+dot(K, residuals)
-            
+
             one_minus_KC = numpy.eye(self.ss)-dot(K,self.C)
-        
+
             # compute a posteri estimate of errors
             P = dot(one_minus_KC,Pminus)
         else:
             # no observation
             xhat = xhatminus
             P = Pminus
-            
+
+        if full_output:
+            # calculate loglik and Pfuture
+            VVnew = dot(one_minus_KC,dot(self.A,self.P_k1))
+            loglik = gaussian_prob( residuals, numpy.zeros((1,len(residuals))), Kdenominator, 1)
         # this step (k) becomes next step's prior (k-1)
         self.xhat_k1 = xhat
         self.P_k1 = P
         if full_output:
-            # calculate loglik and Pfuture
-            raise NotImplementedError("")
+            return xhat, P, loglik, VVnew
         else:
             return xhat, P
 
 def kalman_filter(y,A,C,Q,R,init_x,init_V,full_output=False):
-    if full_output:
-        raise NotImplementedError("")
-    
     y = numpy.asarray(y)
-    
+
     T, os = y.shape
     ss = len(A)
 
@@ -97,17 +116,20 @@ def kalman_filter(y,A,C,Q,R,init_x,init_V,full_output=False):
     # Forward pass
     xfilt = numpy.zeros((T,ss))
     Vfilt = numpy.zeros((T,ss,ss))
+    if full_output:
+        VVfilt =  numpy.zeros((T,ss,ss))
+    loglik = 0
 
     for i in range(T):
         isinitial = i==0
         y_i = y[i]
 
         if full_output:
-            xfilt_i, Vfilt_i, VVfilt_i, loglik_i = kfilt.step(y=y_i,
-                                                              isinitial=isinitial,
-                                                              full_output=True)
+            xfilt_i, Vfilt_i, LL, VVfilt_i = kfilt.step(y=y_i,
+                                                        isinitial=isinitial,
+                                                        full_output=True)
             VVfilt[i] = VVfilt_i
-            loglik[i] = loglik_i
+            loglik += LL
         else:
             xfilt_i, Vfilt_i = kfilt.step(y=y_i,
                                           isinitial=isinitial,
@@ -115,10 +137,9 @@ def kalman_filter(y,A,C,Q,R,init_x,init_V,full_output=False):
         xfilt[i] = xfilt_i
         Vfilt[i] = Vfilt_i
     if full_output:
-        1/0
+        return xfilt,Vfilt,VVfilt,loglik
     else:
         return xfilt,Vfilt
-        
 
 def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None,full_output=False):
     """Rauch-Tung-Striebel (RTS) smoother
@@ -146,11 +167,11 @@ def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None,full_output=Fals
 
     N.B. Axes are swapped relative to Kevin Murphy's example, because
     in all my data, time is the first dimension."""
-    
-    def smooth_update(xsmooth_future,Vsmooth_future,xfilt,Vfilt,Vfilt_future,VVfilt_future,A,Q):
+
+    def smooth_update(xsmooth_future,Vsmooth_future,xfilt,Vfilt,Vfilt_future,VVfilt_future,A,Q,full_output=False):
         dot = numpy.dot
         inv = numpy.linalg.inv
-        
+
         xpred = dot(A,xfilt)
         Vpred = dot(A,numpy.dot(Vfilt,A.T)) + Q
         J = dot(Vfilt,numpy.dot(A.T,inv(Vpred))) # smoother gain matrix
@@ -160,7 +181,7 @@ def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None,full_output=Fals
             (Vsmooth_future - Vfilt_future),
             numpy.dot(inv(Vfilt_future),VVfilt_future))
         return xsmooth, Vsmooth, VVsmooth_future
-        
+
     T, os = y.shape
     ss = len(A)
 
@@ -168,7 +189,8 @@ def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None,full_output=Fals
     # Forward pass
     xfilt = numpy.zeros((T,ss))
     Vfilt = numpy.zeros((T,ss,ss))
-    VVfilt = numpy.zeros((T,ss,ss))
+    VVfilt =  numpy.zeros((T,ss,ss))
+    loglik = 0
 
     for i in range(T):
         isinitial = i==0
@@ -178,15 +200,15 @@ def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None,full_output=Fals
             y_i = None
 
         if full_output:
-            xfilt_i, Vfilt_i, VVfilt_i, loglik_i = kfilt.step(y=y_i,isinitial=isinitial,full_output=True)
+            xfilt_i, Vfilt_i, LL, VVfilt_i = kfilt.step(y=y_i,isinitial=isinitial,full_output=True)
             VVfilt[i] = VVfilt_i
-            loglik[i] = loglik_i
+            loglik += LL
         else:
             xfilt_i, Vfilt_i = kfilt.step(y=y_i,isinitial=isinitial,full_output=False)
-            
+
         xfilt[i] = xfilt_i
         Vfilt[i] = Vfilt_i
-        
+
     xsmooth = numpy.array(xfilt,copy=True)
     Vsmooth = numpy.array(Vfilt,copy=True)
     VVsmooth = numpy.array(Vfilt,copy=True)
@@ -196,12 +218,15 @@ def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None,full_output=Fals
                                                          Vsmooth[t+1,:,:],
                                                          xfilt[t,:],
                                                          Vfilt[t,:,:],
-                                                         Vfilt[t,:,:],
-                                                         VVfilt[t,:,:],
-                                                         A,Q)
+                                                         Vfilt[t+1,:,:],
+                                                         VVfilt[t+1,:,:],
+                                                         A,Q,
+                                                         full_output=full_output)
         xsmooth[t,:] = xsmooth_t
         Vsmooth[t,:,:] = Vsmooth_t
-        VVsmooth[t,:,:] = VVsmooth_t
+        VVsmooth[t+1,:,:] = VVsmooth_t
+
+    VVsmooth[0,:,:]=numpy.zeros((ss,ss))
 
     if full_output:
         return xsmooth, Vsmooth, VVsmooth, loglik
