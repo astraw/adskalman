@@ -223,8 +223,7 @@ def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None,full_output=Fals
 
 def learn_kalman(data, A, C, Q, R, initx, initV,
                  max_iter=10, diagQ=False, diagR=False,
-                 ARmode=False, constr_fun_dict={}):
-    verbose=True
+                 ARmode=False, constr_fun_dict={},verbose=False):
     inv = numpy.linalg.inv
 
     def em_converged(loglik, previous_loglik, threshold=1e-4, check_increased=True):
