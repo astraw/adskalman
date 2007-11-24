@@ -15,9 +15,9 @@ def gaussian_prob(x,m,C,use_log=False):
     d = x.shape[0]
     M = numpy.dot(m.T,numpy.ones((1,N))) # replicate mean across columns
     denom = (2*numpy.pi)**(d/2)*numpy.sqrt(abs(numpy.linalg.det(C)))
-    XX = ((x-M).T*numpy.linalg.inv(C)) * (x-M).T
-    print XX.shape
-    mahal = numpy.sum(XX,axis=0) # unknown axis
+    xMT = (x-M).T
+    tmpXX = (xMT*numpy.linalg.inv(C)) * xMT
+    mahal = numpy.sum(tmpXX.flat)
     if numpy.any( mahal<0 ):
         raise ValueError("mahal < 0 => C is not psd")
     if use_log:
