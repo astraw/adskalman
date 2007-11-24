@@ -15,7 +15,9 @@ def gaussian_prob(x,m,C,use_log=False):
     d = x.shape[0]
     M = numpy.dot(m.T,numpy.ones((1,N))) # replicate mean across columns
     denom = (2*numpy.pi)**(d/2)*numpy.sqrt(abs(numpy.linalg.det(C)))
-    mahal = numpy.sum(((x-M).T*numpy.linalg.inv(C)) * (x-M).T,axis=32) # unknown axis
+    XX = ((x-M).T*numpy.linalg.inv(C)) * (x-M).T
+    print XX.shape
+    mahal = numpy.sum(XX,axis=0) # unknown axis
     if numpy.any( mahal<0 ):
         raise ValueError("mahal < 0 => C is not psd")
     if use_log:
@@ -97,7 +99,7 @@ class KalmanFilter:
         if full_output:
             # calculate loglik and Pfuture
             VVnew = dot(one_minus_KC,dot(self.A,self.P_k1))
-            loglik = gaussian_prob( residuals, numpy.zeros((1,len(residuals))), Kdenominator, 1)
+            loglik = gaussian_prob( residuals, numpy.zeros((1,len(residuals))), Kdenominator, use_log=True)
         # this step (k) becomes next step's prior (k-1)
         self.xhat_k1 = xhat
         self.P_k1 = P
