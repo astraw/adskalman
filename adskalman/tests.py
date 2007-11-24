@@ -127,6 +127,43 @@ class TestKalman(unittest.TestCase):
         assert_3d_vs_kpm_close(Vsmooth,kpm['Vsmooth'])
         assert_3d_vs_kpm_close(VVsmooth,kpm['VVsmooth'])
         assert numpy.allclose(loglik.T,kpm['loglik_smooth'])
+    def test_learn_KPM(self):
+        kpm=scipy.io.loadmat('kpm_learn_results')
+
+        y = kpm['y'].T # data vector is transposed from KPM
+        F1 = kpm['F1']
+        H1 = kpm['H1']
+        Q1 = kpm['Q1']
+        R1 = kpm['R1']
+        initx1 = kpm['initx']
+        initV1 = kpm['initV']
+        max_iter = kpm['max_iter']
+        F2, H2, Q2, R2, initx2, initV2, LL = adskalman.learn_kalman(y, F1, H1, Q1, R1, initx1, initV1, max_iter)
+        assert numpy.allclose(F2,kpm['F2'])
+
+    def test_loglik_KPM(self):
+        # this test broke the loglik calculation
+        kpm=scipy.io.loadmat('kpm_learn_results')
+        y = kpm['y'].T # data vector is transposed from KPM
+        F1 = kpm['F1']
+        H1 = kpm['H1']
+        Q1 = kpm['Q1']
+        R1 = kpm['R1']
+        initx1 = kpm['initx']
+        initV1 = kpm['initV']
+        xfilt, Vfilt, VVfilt, loglik_filt =  adskalman.kalman_filter(
+            y, F1, H1, Q1, R1, initx1, initV1,full_output=True)
+        assert numpy.allclose(xfilt, kpm['xfilt'].T)
+        assert_3d_vs_kpm_close(Vfilt, kpm['Vfilt'])
+        assert_3d_vs_kpm_close(VVfilt, kpm['VVfilt'])
+        assert numpy.allclose(loglik_filt, kpm['loglik_filt'])
+
+        xsmooth, Vsmooth, VVsmooth, loglik_smooth =  adskalman.kalman_smoother(
+            y, F1, H1, Q1, R1, initx1, initV1,full_output=True)
+        assert numpy.allclose(xsmooth, kpm['xsmooth'].T)
+        assert_3d_vs_kpm_close(Vsmooth, kpm['Vsmooth'])
+        assert_3d_vs_kpm_close(VVsmooth, kpm['VVsmooth'])
+        assert numpy.allclose(loglik_smooth, kpm['loglik_smooth'])
 
 def get_test_suite():
     ts=unittest.TestSuite([unittest.makeSuite(TestKalman),

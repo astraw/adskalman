@@ -1,3 +1,4 @@
+from __future__ import division
 import numpy
 
 # For treatment of missing data, see:
@@ -10,22 +11,21 @@ import numpy
 
 def gaussian_prob(x,m,C,use_log=False):
     m = numpy.atleast_1d(m)
-    N=1
     assert len(x.shape)==1
+    N=1
     d = x.shape[0]
     M = numpy.dot(m.T,numpy.ones((1,N))) # replicate mean across columns
     denom = (2*numpy.pi)**(d/2)*numpy.sqrt(abs(numpy.linalg.det(C)))
+    x = x[:,numpy.newaxis] # make column vector
     xMT = (x-M).T
-    tmpXX = (xMT*numpy.linalg.inv(C)) * xMT
+    tmpXX = (numpy.dot(xMT,numpy.linalg.inv(C))) * xMT
     mahal = numpy.sum(tmpXX.flat)
     if numpy.any( mahal<0 ):
         raise ValueError("mahal < 0 => C is not psd")
     if use_log:
         p = -0.5*mahal - numpy.log(denom)
     else:
-        eps=1e-16
-        import warnings
-        warnings.warn('made up definition for eps')
+        eps=2**-52
         p = numpy.exp( -0.5*mahal ) / (denom+eps)
     return p
 
@@ -138,6 +138,7 @@ def kalman_filter(y,A,C,Q,R,init_x,init_V,full_output=False):
                                           full_output=False)
         xfilt[i] = xfilt_i
         Vfilt[i] = Vfilt_i
+
     if full_output:
         return xfilt,Vfilt,VVfilt,loglik
     else:
@@ -219,3 +220,123 @@ def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None,full_output=Fals
         return xsmooth, Vsmooth, VVsmooth, loglik
     else:
         return xsmooth, Vsmooth
+
+def learn_kalman(data, A, C, Q, R, initx, initV,
+                 max_iter=10, diagQ=False, diagR=False,
+                 ARmode=False, constr_fun_dict={}):
+    verbose=True
+    inv = numpy.linalg.inv
+
+    def em_converged(loglik, previous_loglik, threshold=1e-4, check_increased=True):
+        converged = False
+        decrease = False
+        if check_increased:
+            if loglik - previous_loglik < -1e-3:
+                print '******likelihood decreased from %6.4f to %6.4f!'%(previous_loglik, loglik)
+                decrease = True
+                converged = False
+                return converged, decrease
+        delta_loglik = abs(loglik - previous_loglik)
+        eps=2**-52
+        avg_loglik = (abs(loglik) + abs(previous_loglik) + eps)/2
+        if (delta_loglik/avg_loglik) < threshold:
+            converged = True
+        return converged, decrease
+
+    def Estep(y, A, C, Q, R, initx, initV, ARmode):
+        T, os = y.shape
+        ss = len(A)
+        if ARmode:
+            xsmooth = y
+            Vsmooth = numpy.zeros((T,ss,ss))
+            VVsmooth = numpy.zeros((T,ss,ss))
+            loglik = 0
+        else:
+            xsmooth, Vsmooth, VVsmooth, loglik = kalman_smoother(y, A, C, Q, R, initx, initV, full_output=True)
+
+        delta = numpy.zeros((os,ss))
+        gamma = numpy.zeros((ss,ss))
+        beta = numpy.zeros((ss,ss))
+        for t in range(T):
+            delta = delta + numpy.dot( y[t,:,numpy.newaxis], xsmooth[t,:,numpy.newaxis].T )
+            gamma = gamma + numpy.dot(xsmooth[t,:,numpy.newaxis],xsmooth[t,:,numpy.newaxis].T) + Vsmooth[t,:,:]
+            if t>0:
+                beta = beta +  numpy.dot(xsmooth[t,:,numpy.newaxis],xsmooth[t-1,:,numpy.newaxis].T) + VVsmooth[t,:,:]
+        gamma1 = gamma - numpy.dot(xsmooth[T-1,:,numpy.newaxis],xsmooth[T-1,:,numpy.newaxis].T) - Vsmooth[T-1,:,:]
+        gamma2 = gamma - numpy.dot(xsmooth[0,:,numpy.newaxis],xsmooth[0,:,numpy.newaxis].T) - Vsmooth[0,:,:]
+
+        x1 = xsmooth[0,:]
+        V1 = Vsmooth[0,:,:]
+        return beta, gamma, delta, gamma1, gamma2, x1, V1, loglik
+    thresh = 1e-4
+
+    N = 1
+    ss = A.shape[0]
+    os = C.shape[0]
+
+    alpha = numpy.zeros((os,os))
+    Tsum = 0
+
+    if 1:
+    #for ex in range(N):
+        #y=data[ex]
+        y = data
+        T = y.shape[0]
+        Tsum += T
+        alpha_temp = numpy.zeros((os,os))
+        for t in range(T):
+            yt = y[t,:,numpy.newaxis]
+            alpha_temp = alpha_temp + numpy.dot(yt,yt.T)
+        alpha = alpha + alpha_temp
+    previous_loglik = -numpy.inf
+    converged = False
+    num_iter = 0
+    LL = []
+
+    while (not converged) and (num_iter < max_iter):
+        # E step
+        delta = numpy.zeros((os,ss))
+        gamma = numpy.zeros((ss,ss))
+        gamma1 = numpy.zeros((ss,ss))
+        gamma2 = numpy.zeros((ss,ss))
+        beta = numpy.zeros((ss,ss))
+        P1sum = numpy.zeros((ss,ss))
+        x1sum = numpy.zeros((ss,))
+        loglik = 0
+
+        if 1:
+            #for ex in range(N):
+            y = data
+            T = len(y)
+            beta_t, gamma_t, delta_t, gamma1_t, gamma2_t, x1, V1, loglik_t = Estep(y, A, C, Q, R, initx, initV, ARmode)
+            beta = beta + beta_t
+            gamma = gamma + gamma_t
+            delta = delta + delta_t
+            gamma1 = gamma1 + gamma1_t
+            gamma2 = gamma2 + gamma2_t
+            P1sum = P1sum + V1 + numpy.dot(x1[:,numpy.newaxis],x1[:,numpy.newaxis].T)
+            x1sum = x1sum + x1
+            loglik = loglik + loglik_t
+        LL.append( loglik )
+        if verbose:
+            print 'iteration %d, loglik = %f'%(num_iter, loglik)
+        num_iter += 1
+
+        # M step
+        Tsum1 = Tsum-N
+        A = numpy.dot(beta,inv(gamma1))
+        Q = (gamma2 - numpy.dot(A,beta.T))/Tsum1
+        if diagQ:
+            Q = numpy.diag( numpy.diag(Q) )
+        if not ARmode:
+            C = numpy.dot(delta,inv(gamma))
+            R = (alpha - numpy.dot(C,delta.T)) / Tsum
+            if diagR:
+                R = numpy.diag( numpy.diag( R ))
+        initx = x1sum/N
+        initV = P1sum/N - numpy.dot(initx[:,numpy.newaxis],initx[:,numpy.newaxis].T)
+        if len(constr_fun_dict.keys()):
+            raise NotImplementedError("")
+        converged, em_decrease = em_converged(loglik, previous_loglik, thresh)
+        previous_loglik = loglik
+    return A, C, Q, R, initx, initV, LL
