@@ -187,33 +187,18 @@ def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None,full_output=Fals
     T, os = y.shape
     ss = len(A)
 
-    kfilt = KalmanFilter(A,C,Q,R,init_x,init_V)
     # Forward pass
-    xfilt = numpy.zeros((T,ss))
-    Vfilt = numpy.zeros((T,ss,ss))
-    VVfilt =  numpy.zeros((T,ss,ss))
-    loglik = 0
+    forward_results = kalman_filter(y,A,C,Q,R,init_x,init_V,full_output=full_output)
+    if full_output:
+        xfilt,Vfilt,VVfilt,loglik = forward_results
+    else:
+        xfilt,Vfilt = forward_results
+        VVfilt = Vfilt # dummy value
 
-    for i in range(T):
-        isinitial = i==0
-        if (valid_data_idx is None) or (i in valid_data_idx):
-            y_i = y[i]
-        else:
-            y_i = None
-
-        if full_output:
-            xfilt_i, Vfilt_i, LL, VVfilt_i = kfilt.step(y=y_i,isinitial=isinitial,full_output=True)
-            VVfilt[i] = VVfilt_i
-            loglik += LL
-        else:
-            xfilt_i, Vfilt_i = kfilt.step(y=y_i,isinitial=isinitial,full_output=False)
-
-        xfilt[i] = xfilt_i
-        Vfilt[i] = Vfilt_i
-
+    # Backward pass
     xsmooth = numpy.array(xfilt,copy=True)
     Vsmooth = numpy.array(Vfilt,copy=True)
-    VVsmooth = numpy.array(Vfilt,copy=True)
+    VVsmooth = numpy.empty(Vfilt.shape)
 
     for t in range(T-2,-1,-1):
         xsmooth_t, Vsmooth_t, VVsmooth_t = smooth_update(xsmooth[t+1,:],
