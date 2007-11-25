@@ -71,7 +71,11 @@ class KalmanFilter:
         dot = numpy.dot # shorthand
         inv = numpy.linalg.inv
 
-        if y is not None:
+        missing_data = False
+        if y is None or numpy.all( numpy.isnan( y )):
+            missing_data = True
+
+        if not missing_data:
             ############################################
             #          incorporate observation
 
@@ -80,7 +84,7 @@ class KalmanFilter:
             # calculate Kalman gain
             Knumerator = dot(Pminus,self.CT)
             Kdenominator = dot(dot(self.C,Pminus),self.CT)+self.R
-            K = dot(Knumerator,inv(Kdenominator))
+            K = dot(Knumerator,inv(Kdenominator)) # Kalman gain
 
             residuals = y-dot(self.C,xhatminus) # error/innovation
             xhat = xhatminus+dot(K, residuals)
@@ -95,9 +99,15 @@ class KalmanFilter:
             P = Pminus
 
         if full_output:
-            # calculate loglik and Pfuture
-            VVnew = dot(one_minus_KC,dot(self.A,self.P_k1))
-            loglik = gaussian_prob( residuals, numpy.zeros((1,len(residuals))), Kdenominator, use_log=True)
+            if missing_data:
+                # XXX missing data, check literature!
+                VVnew = dot(self.A,self.P_k1)
+                loglik = 0
+            else:
+                # calculate loglik and Pfuture
+                VVnew = dot(one_minus_KC,dot(self.A,self.P_k1))
+                loglik = gaussian_prob( residuals, numpy.zeros((1,len(residuals))), Kdenominator, use_log=True)
+
         # this step (k) becomes next step's prior (k-1)
         self.xhat_k1 = xhat
         self.P_k1 = P
@@ -107,10 +117,12 @@ class KalmanFilter:
             return xhat, P
 
 def kalman_filter(y,A,C,Q,R,init_x,init_V,full_output=False):
-    y = numpy.asarray(y)
-
-    T, os = y.shape
+    T = len(y)
     ss = len(A)
+
+    for arr in (A,C,Q,R):
+        if numpy.any( numpy.isnan(arr) ):
+            raise ValueError("cannot do Kalman filtering with nan values in parameters")
 
     kfilt = KalmanFilter(A,C,Q,R,init_x,init_V)
     # Forward pass
@@ -183,7 +195,7 @@ def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None,full_output=Fals
             numpy.dot(inv(Vfilt_future),VVfilt_future))
         return xsmooth, Vsmooth, VVsmooth_future
 
-    T, os = y.shape
+    T = len(y)
     ss = len(A)
 
     # Forward pass
@@ -263,10 +275,13 @@ def learn_kalman(data, A, C, Q, R, initx, initV,
         gamma = numpy.zeros((ss,ss))
         beta = numpy.zeros((ss,ss))
         for t in range(T):
-            delta = delta + numpy.dot( y[t,:,numpy.newaxis], xsmooth[t,:,numpy.newaxis].T )
-            gamma = gamma + numpy.dot(xsmooth[t,:,numpy.newaxis],xsmooth[t,:,numpy.newaxis].T) + Vsmooth[t,:,:]
-            if t>0:
-                beta = beta +  numpy.dot(xsmooth[t,:,numpy.newaxis],xsmooth[t-1,:,numpy.newaxis].T) + VVsmooth[t,:,:]
+            yt = y[t,:,numpy.newaxis]
+            if not numpy.all(numpy.isnan(yt)):
+                # XXX missing data, check literature!
+                delta += numpy.dot( yt, xsmooth[t,:,numpy.newaxis].T )
+                gamma += numpy.dot(xsmooth[t,:,numpy.newaxis],xsmooth[t,:,numpy.newaxis].T) + Vsmooth[t,:,:]
+                if t>0:
+                    beta = beta +  numpy.dot(xsmooth[t,:,numpy.newaxis],xsmooth[t-1,:,numpy.newaxis].T) + VVsmooth[t,:,:]
         gamma1 = gamma - numpy.dot(xsmooth[T-1,:,numpy.newaxis],xsmooth[T-1,:,numpy.newaxis].T) - Vsmooth[T-1,:,:]
         gamma2 = gamma - numpy.dot(xsmooth[0,:,numpy.newaxis],xsmooth[0,:,numpy.newaxis].T) - Vsmooth[0,:,:]
 
@@ -310,8 +325,11 @@ def learn_kalman(data, A, C, Q, R, initx, initV,
         alpha_temp = numpy.zeros((os,os))
         for t in range(T):
             yt = y[t,:,numpy.newaxis]
-            alpha_temp = alpha_temp + numpy.dot(yt,yt.T)
-        alpha = alpha + alpha_temp
+            if numpy.all(numpy.isnan(yt)):
+                alpha_temp = 0 # XXX missing data, check literature!
+            else:
+                alpha_temp = alpha_temp + numpy.dot(yt,yt.T)
+        alpha += alpha_temp
     previous_loglik = -numpy.inf
     converged = False
     num_iter = 0
@@ -333,13 +351,13 @@ def learn_kalman(data, A, C, Q, R, initx, initV,
             T = len(y)
             beta_t, gamma_t, delta_t, gamma1_t, gamma2_t, x1, V1, loglik_t = Estep(y, A, C, Q, R, initx, initV, ARmode)
             beta = beta + beta_t
-            gamma = gamma + gamma_t
-            delta = delta + delta_t
-            gamma1 = gamma1 + gamma1_t
-            gamma2 = gamma2 + gamma2_t
-            P1sum = P1sum + V1 + numpy.dot(x1[:,numpy.newaxis],x1[:,numpy.newaxis].T)
-            x1sum = x1sum + x1
-            loglik = loglik + loglik_t
+            gamma += gamma_t
+            delta += delta_t
+            gamma1 += gamma1_t
+            gamma2 += gamma2_t
+            P1sum += V1 + numpy.dot(x1[:,numpy.newaxis],x1[:,numpy.newaxis].T)
+            x1sum += x1
+            loglik += loglik_t
         LL.append( loglik )
         if verbose:
             print 'iteration %d, loglik = %f'%(num_iter, loglik)
