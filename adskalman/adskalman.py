@@ -101,8 +101,9 @@ class KalmanFilter:
         if full_output:
             if missing_data:
                 # XXX missing data, check literature!
-                VVnew = dot(self.A,self.P_k1)
-                loglik = 0
+                raise NotImplementedError("don't know how to compute VVnew with missing data")
+                #VVnew = dot(self.A,self.P_k1)
+                #loglik = 0
             else:
                 # calculate loglik and Pfuture
                 VVnew = dot(one_minus_KC,dot(self.A,self.P_k1))

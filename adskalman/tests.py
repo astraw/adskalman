@@ -128,34 +128,6 @@ class TestKalman(unittest.TestCase):
         assert_3d_vs_kpm_close(VVsmooth,kpm['VVsmooth'])
         assert numpy.allclose(loglik.T,kpm['loglik_smooth'])
 
-    def test_filt_missing(self):
-        kpm=scipy.io.loadmat('kpm_learn_results')
-
-        y = kpm['y'].T # data vector is transposed from KPM
-        F1 = kpm['F1']
-        H1 = kpm['H1']
-        Q1 = kpm['Q1']
-        R1 = kpm['R1']
-        initx1 = kpm['initx']
-        initV1 = kpm['initV']
-        max_iter = kpm['max_iter']
-        T,os = y.shape
-        if T>2:
-            y[2,:] = numpy.nan * numpy.ones( (os,) )
-        if T>12:
-            y[12,:] = numpy.nan * numpy.ones( (os,) )
-        xfilt_nan, Vfilt_nan, VVfilt_nan, loglik_nan = adskalman.kalman_filter(y,F1,H1,Q1,R1,initx1,initV1,
-                                                                                       full_output=True)
-        y_none = []
-        for yy in y:
-            if numpy.any( numpy.isnan( yy ) ):
-                y_none.append( None )
-            else:
-                y_none.append( yy )
-        xfilt_none, Vfilt_none, VVfilt_none, loglik_none = adskalman.kalman_filter(y_none,F1,H1,Q1,R1,initx1,initV1,
-                                                                                           full_output=True)
-        assert numpy.allclose(xfilt_nan, xfilt_none)
-
     def test_smooth_missing(self):
         kpm=scipy.io.loadmat('kpm_learn_results')
 
@@ -166,23 +138,28 @@ class TestKalman(unittest.TestCase):
         R1 = kpm['R1']
         initx1 = kpm['initx']
         initV1 = kpm['initV']
-        max_iter = kpm['max_iter']
+
         T,os = y.shape
+        # build data with missing observations specified by nan
         if T>2:
             y[2,:] = numpy.nan * numpy.ones( (os,) )
         if T>12:
             y[12,:] = numpy.nan * numpy.ones( (os,) )
-        xsmooth_nan, Vsmooth_nan, VVsmooth_nan, loglik_nan = adskalman.kalman_smoother(y,F1,H1,Q1,R1,initx1,initV1,
-                                                                                       full_output=True)
+
+        # build data with missing observations specified by None
         y_none = []
         for yy in y:
             if numpy.any( numpy.isnan( yy ) ):
                 y_none.append( None )
             else:
                 y_none.append( yy )
-        xsmooth_none, Vsmooth_none, VVsmooth_none, loglik_none = adskalman.kalman_smoother(y_none,F1,H1,Q1,R1,initx1,initV1,
-                                                                                           full_output=True)
+
+        # get results
+        xsmooth_nan, Vsmooth_nan = adskalman.kalman_smoother(y,F1,H1,Q1,R1,initx1,initV1)
+        xsmooth_none, Vsmooth_none = adskalman.kalman_smoother(y_none,F1,H1,Q1,R1,initx1,initV1)
+        # compare
         assert numpy.allclose(xsmooth_nan, xsmooth_none)
+        assert numpy.allclose(Vsmooth_nan, Vsmooth_none)
 
     def test_learn_missing_nan(self):
         kpm=scipy.io.loadmat('kpm_learn_results')
