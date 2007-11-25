@@ -3,8 +3,6 @@ import numpy
 
 # For treatment of missing data, see:
 #
-# http://www.quantlet.com/mdstat/scripts/xfg/html/xfghtmlnode92.html
-#
 # Shumway, R.H. & Stoffer, D.S. (1982). An approach to time series
 # smoothing and forecasting using the EM algorithm. Journal of Time
 # Series Analysis, 3, 253-264. http://www.stat.pitt.edu/stoffer/em.pdf
@@ -224,6 +222,14 @@ def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None,full_output=Fals
 def learn_kalman(data, A, C, Q, R, initx, initV,
                  max_iter=10, diagQ=False, diagR=False,
                  ARmode=False, constr_fun_dict={},verbose=False):
+    """
+
+    If data is a list of (potentially variable length) arrays, each
+    array is a T-by-os array of observations, where T is the number of
+    observations and os is the observation vector size. If data is
+    just a single array, it is T-by-os.
+
+    """
     inv = numpy.linalg.inv
 
     def em_converged(loglik, previous_loglik, threshold=1e-4, check_increased=True):
@@ -269,17 +275,36 @@ def learn_kalman(data, A, C, Q, R, initx, initV,
         return beta, gamma, delta, gamma1, gamma2, x1, V1, loglik
     thresh = 1e-4
 
-    N = 1
     ss = A.shape[0]
     os = C.shape[0]
+
+    if isinstance(data,list):
+        N = len(data)
+        # ensure these are all T-by-OS
+        for i in range(N):
+            y = data[i]
+            if len(y.shape)!=2:
+                raise ValueError("if data is a list, it must contain T-by-os data arrays (shape wrong)")
+            T, osy = y.shape
+            if osy != os:
+                raise ValueError("if data is a list, it must contain T-by-os data arrays (os wrong)")
+    else:
+        y = data
+        if len(y.shape)!=2:
+            raise ValueError("if data is an array, it must be T-by-os data array (shape wrong)")
+        T, osy = y.shape
+        if osy != os:
+            raise ValueError("if data is an array, it must be T-by-os data array (os wrong)")
+
+        # create data list from input array
+        N = 1
+        data = [y]
 
     alpha = numpy.zeros((os,os))
     Tsum = 0
 
-    if 1:
-    #for ex in range(N):
-        #y=data[ex]
-        y = data
+    for ex in range(N):
+        y=data[ex]
         T = y.shape[0]
         Tsum += T
         alpha_temp = numpy.zeros((os,os))
@@ -303,9 +328,8 @@ def learn_kalman(data, A, C, Q, R, initx, initV,
         x1sum = numpy.zeros((ss,))
         loglik = 0
 
-        if 1:
-            #for ex in range(N):
-            y = data
+        for ex in range(N):
+            y = data[ex]
             T = len(y)
             beta_t, gamma_t, delta_t, gamma1_t, gamma2_t, x1, V1, loglik_t = Estep(y, A, C, Q, R, initx, initV, ARmode)
             beta = beta + beta_t
