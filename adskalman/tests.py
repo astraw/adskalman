@@ -127,6 +127,7 @@ class TestKalman(unittest.TestCase):
         assert_3d_vs_kpm_close(Vsmooth,kpm['Vsmooth'])
         assert_3d_vs_kpm_close(VVsmooth,kpm['VVsmooth'])
         assert numpy.allclose(loglik.T,kpm['loglik_smooth'])
+
     def test_learn_KPM(self):
         kpm=scipy.io.loadmat('kpm_learn_results')
 
@@ -140,6 +141,12 @@ class TestKalman(unittest.TestCase):
         max_iter = kpm['max_iter']
         F2, H2, Q2, R2, initx2, initV2, LL = adskalman.learn_kalman(y, F1, H1, Q1, R1, initx1, initV1, max_iter)
         assert numpy.allclose(F2,kpm['F2'])
+        assert numpy.allclose(H2,kpm['H2'])
+        assert numpy.allclose(Q2,kpm['Q2'])
+        assert numpy.allclose(R2,kpm['R2'])
+        assert numpy.allclose(initx2,kpm['initx2'])
+        assert numpy.allclose(initV2,kpm['initV2'])
+        assert numpy.allclose(LL,kpm['LL'])
 
     def test_loglik_KPM(self):
         # this test broke the loglik calculation
