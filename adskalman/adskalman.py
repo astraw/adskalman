@@ -68,24 +68,22 @@ Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
 
     # initial values
     xhat_a_priori[:,0] = numpy.matrix(xhat_a_priori_0).T
-    K_k = zeros( (ss,os) )
-    for i in range(os):
-        K_k[i,i]=1
-    e_k = zeros((os,1))
     Sigma_a_priori[0] = numpy.matrix(Sigma_a_priori_0)
 
     # forward recursions
     for k in range(N):
-        xhat_a_posteri[:,k] = xhat_a_priori[:,k] + K_k*e_k # 15a
-        if (k+1)<N:
-            xhat_a_priori[:,k+1] = F*xhat_a_posteri[:,k] # 15b
-        e_k = y[:,k] - H*xhat_a_priori[:,k] # 15c
-        Sigma_e_k = H*Sigma_a_priori[k]*H.T + R # 15e # XXX must be done before 15d(?)
-        K_k = Sigma_a_priori[k]*H.T*inv(Sigma_e_k) # 15d
-        Sigma_a_posteri[k] = Sigma_a_priori[k] - K_k*Sigma_e_k*K_k.T # 15f
+        e_k = y[:,k] - H*xhat_a_priori[:,k] # 15c, error/innovation
+        Sigma_e_k = H*Sigma_a_priori[k]*H.T + R # 15e, covariance
+        K_k = Sigma_a_priori[k]*H.T*inv(Sigma_e_k) # 15d, Kalman gain
+
+        xhat_a_posteri[:,k] = xhat_a_priori[:,k] + K_k*e_k # 15a, update state
+
+        Sigma_a_posteri[k] = Sigma_a_priori[k] - K_k*Sigma_e_k*K_k.T # 15f, update covariance
         #Sigma_filt[k] = (I-K_k*H)*F*Sigma_a_posteri[k-1] # 15g
         if (k+1)<N:
-            Sigma_a_priori[k+1] = F*Sigma_a_posteri[k]*F.T + Q # 15h
+            # predictions (calculation of a priori)
+            xhat_a_priori[:,k+1] = F*xhat_a_posteri[:,k] # 15b, predict state
+            Sigma_a_priori[k+1] = F*Sigma_a_posteri[k]*F.T + Q # 15h, predict covariance
 
     if forward_only:
         # return as arrays (not matrices)

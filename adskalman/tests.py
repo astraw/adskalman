@@ -4,16 +4,23 @@ import numpy
 import scipy.io
 import scipy.stats
 
-def assert_3d_vs_kpm_close(A,B):
+def assert_3d_vs_kpm_close(A,B,debug=False):
     """compare my matrices (where T dimension is first) vs. KPM's (where it's last)"""
     for i in range(A.shape[0]):
-        try:
-            assert numpy.allclose( A[i,:,:], B[:,:,i])
-        except:
+        if debug:
             print
-            print i
-            print 'A[i],',A[i]
-            print "B[:,:,i]",B[:,:,i]
+            print 'i=%d'%i
+            print 'A[i],',A[i].shape,A[i]
+            print "B[:,:,i]",B[:,:,i].shape,B[:,:,i]
+            diff = A[i]-B[:,:,i]
+            print 'diff',diff
+        try:
+            assert numpy.allclose( A[i], B[:,:,i])
+            if debug:
+                print '(same)'
+        except Exception,err:
+            if debug:
+                print '(different)'
             raise
 
 class TestStats(unittest.TestCase):
@@ -186,8 +193,10 @@ class TestKalman(unittest.TestCase):
             print 'xsmooth.T',xsmooth.T
             print 'xsmooth_kpm.T',xsmooth_kpm.T
             print "kpm['xsmooth']",kpm['xsmooth']
-        assert numpy.allclose(xsmooth.T,kpm['xsmooth'])
-        assert_3d_vs_kpm_close(Vsmooth,kpm['Vsmooth'])
+
+            print 'Vsmooth',Vsmooth
+        assert numpy.allclose(xsmooth.T[:,:-1],kpm['xsmooth'][:,:-1]) # KPM doesn't update last timestep
+        assert_3d_vs_kpm_close(Vsmooth[:-1],kpm['Vsmooth'][:,:,:-1])
 
     def test_smooth_missing(self):
         kpm=scipy.io.loadmat('kpm_learn_results')
