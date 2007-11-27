@@ -3,7 +3,6 @@ import adskalman
 import numpy
 import scipy.io
 import scipy.stats
-import scikits.learn.machine.em.densities as densities
 
 def assert_3d_vs_kpm_close(A,B):
     """compare my matrices (where T dimension is first) vs. KPM's (where it's last)"""
@@ -148,6 +147,47 @@ class TestKalman(unittest.TestCase):
         assert_3d_vs_kpm_close(Vsmooth,kpm['Vsmooth'])
         assert_3d_vs_kpm_close(VVsmooth,kpm['VVsmooth'])
         assert numpy.allclose(loglik,kpm['loglik_smooth'])
+
+    def test_DRO_smooth(self):
+        kpm=scipy.io.loadmat('kpm_results')
+        # process model
+        A = numpy.array([[1, 0, 1, 0],
+                         [0, 1, 0, 1],
+                         [0, 0, 1,  0],
+                         [0, 0, 0,  1]],
+                        dtype=numpy.float64)
+        # observation model
+        C = numpy.array([[1, 0, 0, 0],
+                         [0, 1, 0, 0]],
+                        dtype=numpy.float64)
+        ss=4; os=2
+        # process covariance
+        Q = 0.1*numpy.eye(ss)
+        # measurement covariance
+        R = 1.0*numpy.eye(os)
+        initx = numpy.array([10, 10, 1, 0],dtype=numpy.float64)
+        initV = 10.0*numpy.eye(ss)
+
+        x = kpm['x'].T
+        y = kpm['y'].T
+
+        xfilt, Vfilt = adskalman.DROsmooth(y,A,C,Q,R,initx,initV,forward_only=True)
+        if 0:
+            xfilt_kpm, Vfilt_kpm = adskalman.kalman_filter(y, A, C, Q, R, initx, initV)
+            print 'xfilt.T',xfilt.T
+            print 'xfilt_kpm.T',xfilt_kpm.T
+            print "kpm['xfilt']",kpm['xfilt']
+        assert numpy.allclose(xfilt.T,kpm['xfilt'])
+        assert_3d_vs_kpm_close(Vfilt,kpm['Vfilt'])
+
+        xsmooth, Vsmooth = adskalman.DROsmooth(y,A,C,Q,R,initx,initV)
+        if 0:
+            xsmooth_kpm, Vsmooth_kpm = adskalman.kalman_smoother(y,A,C,Q,R,initx,initV)
+            print 'xsmooth.T',xsmooth.T
+            print 'xsmooth_kpm.T',xsmooth_kpm.T
+            print "kpm['xsmooth']",kpm['xsmooth']
+        assert numpy.allclose(xsmooth.T,kpm['xsmooth'])
+        assert_3d_vs_kpm_close(Vsmooth,kpm['Vsmooth'])
 
     def test_smooth_missing(self):
         kpm=scipy.io.loadmat('kpm_learn_results')
