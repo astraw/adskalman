@@ -1,5 +1,6 @@
 from __future__ import division
 import numpy
+import scikits.learn.machine.em.densities as densities
 
 # For treatment of missing data, see:
 #
@@ -8,6 +9,9 @@ import numpy
 # Series Analysis, 3, 253-264. http://www.stat.pitt.edu/stoffer/em.pdf
 
 def gaussian_prob(x,m,C,use_log=False):
+    if 1:
+        return numpy.asscalar(densities.gauss_den(x,m,C,log=use_log))
+    # Kevin Murphy's implementation
     m = numpy.atleast_1d(m)
     assert len(x.shape)==1
     N=1

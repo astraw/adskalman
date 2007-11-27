@@ -2,6 +2,8 @@ import unittest
 import adskalman
 import numpy
 import scipy.io
+import scipy.stats
+import scikits.learn.machine.em.densities as densities
 
 def assert_3d_vs_kpm_close(A,B):
     """compare my matrices (where T dimension is first) vs. KPM's (where it's last)"""
@@ -14,6 +16,25 @@ def assert_3d_vs_kpm_close(A,B):
             print 'A[i],',A[i]
             print "B[:,:,i]",B[:,:,i]
             raise
+
+class TestStats(unittest.TestCase):
+    def test1(self):
+        pi = numpy.pi
+        exp = numpy.exp
+
+        x=numpy.array([0,0])
+        m=numpy.array([[0,0]])
+        C=numpy.array([[1.0,0],[0,1]])
+        lik = adskalman.gaussian_prob(x,m,C)
+        lik_should = 1/(2*pi) * 1 * exp( 0 )
+        assert numpy.allclose(lik,lik_should)
+
+##         #lik2 = scipy.stats.norm.pdf(x,loc=m,scale=C)
+##         lik2 = densities.gauss_den(x,m,C)
+##         print
+##         print 'lik',lik
+##         print 'lik_should',lik_should
+##         print 'lik2',lik2
 
 class TestKalman(unittest.TestCase):
     def test_kalman1(self,time_steps=100,Qsigma=0.1,Rsigma=0.5):
@@ -119,14 +140,14 @@ class TestKalman(unittest.TestCase):
         assert numpy.allclose(Vfilt.T,kpm['Vfilt'])
         assert_3d_vs_kpm_close(Vfilt,kpm['Vfilt'])
         assert_3d_vs_kpm_close(VVfilt,kpm['VVfilt'])
-        assert numpy.allclose(loglik.T,kpm['loglik'])
+        assert numpy.allclose(loglik,kpm['loglik'])
 
         xsmooth, Vsmooth, VVsmooth, loglik = adskalman.kalman_smoother(y,A,C,Q,R,initx,initV,
                                                                        full_output=True)
         assert numpy.allclose(xsmooth.T,kpm['xsmooth'])
         assert_3d_vs_kpm_close(Vsmooth,kpm['Vsmooth'])
         assert_3d_vs_kpm_close(VVsmooth,kpm['VVsmooth'])
-        assert numpy.allclose(loglik.T,kpm['loglik_smooth'])
+        assert numpy.allclose(loglik,kpm['loglik_smooth'])
 
     def test_smooth_missing(self):
         kpm=scipy.io.loadmat('kpm_learn_results')
@@ -197,6 +218,7 @@ class TestKalman(unittest.TestCase):
         assert numpy.allclose(R2,kpm['R2'])
         assert numpy.allclose(initx2,kpm['initx2'])
         assert numpy.allclose(initV2,kpm['initV2'])
+        #print numpy.ravel(LL),kpm['LL']
         assert numpy.allclose(LL,kpm['LL'])
 
     def test_loglik_KPM(self):
@@ -225,6 +247,7 @@ class TestKalman(unittest.TestCase):
 
 def get_test_suite():
     ts=unittest.TestSuite([unittest.makeSuite(TestKalman),
+                           unittest.makeSuite(TestStats),
                            ])
     return ts
 
