@@ -32,6 +32,23 @@ def gaussian_prob(x,m,C,use_log=False):
         p = numpy.exp( -0.5*mahal ) / (denom+eps)
     return p
 
+def em_converged(loglik, previous_loglik, threshold=1e-4, check_increased=True):
+    """KPM's function"""
+    converged = False
+    decrease = False
+    if check_increased:
+        if loglik - previous_loglik < -1e-3:
+            print '******likelihood decreased from %6.4f to %6.4f!'%(previous_loglik, loglik)
+            decrease = True
+            converged = False
+            return converged, decrease
+    delta_loglik = abs(loglik - previous_loglik)
+    eps=2**-52
+    avg_loglik = (abs(loglik) + abs(previous_loglik) + eps)/2
+    if (delta_loglik/avg_loglik) < threshold:
+        converged = True
+    return converged, decrease
+
 def DROsmooth(y,F,H,Q,R,xhat_a_priori_0,Sigma_a_priori_0,mode='smooth',EM_max_iter=10):
     """
 mode - one of 'forward_only', 'EM', 'smooth'. default='smooth'
@@ -47,6 +64,8 @@ Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
     ones = numpy.matlib.ones
     zeros = numpy.matlib.zeros
     nan = numpy.nan
+    log = numpy.log
+    det = numpy.linalg.det
     def empty(*args,**kw):
         return nan*ones(*args,**kw)
 
@@ -59,6 +78,7 @@ Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
     ss = F.shape[0]
     os,N = y.shape
 
+    previous_loglik = -numpy.inf
     for iter_num in range(EM_max_iter):
         if 0 and mode=='EM':
             print
@@ -132,19 +152,54 @@ Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
 
         # For comparision with DRO's equations, note the following is true:
         # numpy.sum([y[:,i]*x[:,i].T for i in range(3)]) == y*x.T
+        x = xhat_smoothed
 
-        Gamma1 = 1/(N+1)* xhat_smoothed*xhat_smoothed.T # 11a
-        Gamma2 = 1/N    * xhat_smoothed[:,1:]*xhat_smoothed[:,1:].T # 11b
-        Gamma3 = 1/N    * xhat_smoothed[:,:-1]*xhat_smoothed[:,:-1].T # 11c
-        Gamma4 = 1/N    * xhat_smoothed[:,1:]*xhat_smoothed[:,:-1].T # 11d
+        Gamma1 = 1/(N+1)* x*x.T # 11a
+        Gamma2 = 1/N    * x[:,1:]*x[:,1:].T # 11b
+        Gamma3 = 1/N    * x[:,:-1]*x[:,:-1].T # 11c
+        Gamma4 = 1/N    * x[:,1:]*x[:,:-1].T # 11d
         Gamma5 = 1/(N+1)* y*y.T # 11e
-        Gamma6 = 1/(N+1)* y*xhat_smoothed.T # 11e
+        Gamma6 = 1/(N+1)* y*x.T # 11e
 
         # now estimate new matrices
         F = Gamma4*inv(Gamma3) # 10a
         H = Gamma6*inv(Gamma1) # 10b
         Q = Gamma2 - F*Gamma4.T # 10c
         R = Gamma5 - H*Gamma6.T # 10d
+
+        # now evaluate convergence
+        # compute once outside loops
+        logdetQ = log(abs(det(Q)))
+        invQ = inv(Q)
+        logdetR = log(abs(det(R)))
+        invR = inv(R)
+
+        if 0:
+            print 'Q',Q
+            print det(Q)
+            print 'logdetQ',logdetQ
+            print 'invQ',invQ
+            print 'R',R
+            print 'logdetR',logdetR
+            print 'invR',invR
+        ll1 = 0
+        for k in range(1,N):
+            # log likelihood of x_k given x_{k-1}
+            tmp1 = x[:,k] - F*x[:,k-1]
+            ll1 += logdetQ + tmp1.T*invQ*tmp1
+
+        ll2 = 0
+        for k in range(N):
+            # log likelihood of y_k given x_k
+            tmp2 = y[:,k] - H*x[:,k]
+            ll2 += logdetR + tmp2.T*invR*tmp2
+        loglik = -(ll1 + ll2) # 9
+        thresh = 1e-4
+        #print 'loglik',loglik
+        converged, em_decrease = em_converged(loglik, previous_loglik, thresh)
+        previous_loglik = loglik
+        if converged:
+            break
 
 class KalmanFilter:
     def __init__(self,A,C,Q,R,initial_x,initial_P):
@@ -363,22 +418,6 @@ def learn_kalman(data, A, C, Q, R, initx, initV,
 
     """
     inv = numpy.linalg.inv
-
-    def em_converged(loglik, previous_loglik, threshold=1e-4, check_increased=True):
-        converged = False
-        decrease = False
-        if check_increased:
-            if loglik - previous_loglik < -1e-3:
-                print '******likelihood decreased from %6.4f to %6.4f!'%(previous_loglik, loglik)
-                decrease = True
-                converged = False
-                return converged, decrease
-        delta_loglik = abs(loglik - previous_loglik)
-        eps=2**-52
-        avg_loglik = (abs(loglik) + abs(previous_loglik) + eps)/2
-        if (delta_loglik/avg_loglik) < threshold:
-            converged = True
-        return converged, decrease
 
     def Estep(y, A, C, Q, R, initx, initV, ARmode):
         T, os = y.shape
