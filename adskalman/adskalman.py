@@ -64,6 +64,8 @@ Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
     Sigma_a_priori = [None]*N
     Sigma_a_posteri = [None]*N
     Sigma_smoothed = [None]*N
+    Sigma_cross = [None]*N
+    Sigma_cross_smoothed = [None]*N
     I = numpy.matlib.eye(ss)
 
     # initial values
@@ -79,7 +81,8 @@ Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
         xhat_a_posteri[:,k] = xhat_a_priori[:,k] + K_k*e_k # 15a, update state
 
         Sigma_a_posteri[k] = Sigma_a_priori[k] - K_k*Sigma_e_k*K_k.T # 15f, update covariance
-        #Sigma_filt[k] = (I-K_k*H)*F*Sigma_a_posteri[k-1] # 15g
+        if k>=1:
+            Sigma_cross[k] = (I-K_k*H)*F*Sigma_a_posteri[k-1] # 15g
         if (k+1)<N:
             # predictions (calculation of a priori)
             xhat_a_priori[:,k+1] = F*xhat_a_posteri[:,k] # 15b, predict state
@@ -102,9 +105,10 @@ Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
         A_k = Sigma_a_posteri[k-1]*F.T*inv(Sigma_a_priori[k]) # 16c # XXX must be done before 16a(?)
         xhat_smoothed[:,k-1] = xhat_a_posteri[:,k-1] + A_k*(xhat_smoothed[:,k] - xhat_a_priori[:,k]) # 16a
         Sigma_smoothed[k-1] = Sigma_a_posteri[k-1] + A_k*(Sigma_smoothed[k] - Sigma_a_priori[k])*A_k.T # 16b
-        #Sigma_filt_smoothed[k] = (Sigma_filt[k] + 
-        #                          (Sigma_smoothed[k] -
-        #                           Sigma_a_posteri[k])*inv(Sigma_a_posteri[k])*Sigma_filt[k]) # 16d
+        if k>=1:
+            Sigma_cross_smoothed[k] = (Sigma_cross[k] +
+                                       (Sigma_smoothed[k] -
+                                        Sigma_a_posteri[k])*inv(Sigma_a_posteri[k])*Sigma_cross[k]) # 16d
 
     # return as arrays (not matrices)
     xsmooth = numpy.array(xhat_smoothed.T)
