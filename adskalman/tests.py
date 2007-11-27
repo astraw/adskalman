@@ -178,7 +178,7 @@ class TestKalman(unittest.TestCase):
         x = kpm['x'].T
         y = kpm['y'].T
 
-        xfilt, Vfilt = adskalman.DROsmooth(y,A,C,Q,R,initx,initV,forward_only=True)
+        xfilt, Vfilt = adskalman.DROsmooth(y,A,C,Q,R,initx,initV,mode='forward_only')
         if 0:
             xfilt_kpm, Vfilt_kpm = adskalman.kalman_filter(y, A, C, Q, R, initx, initV)
             print 'xfilt.T',xfilt.T
@@ -197,6 +197,8 @@ class TestKalman(unittest.TestCase):
             print 'Vsmooth',Vsmooth
         assert numpy.allclose(xsmooth.T[:,:-1],kpm['xsmooth'][:,:-1]) # KPM doesn't update last timestep
         assert_3d_vs_kpm_close(Vsmooth[:-1],kpm['Vsmooth'][:,:,:-1])
+
+        results = adskalman.DROsmooth(y,A,C,Q,R,initx,initV,mode='EM')
 
     def test_smooth_missing(self):
         kpm=scipy.io.loadmat('kpm_learn_results')

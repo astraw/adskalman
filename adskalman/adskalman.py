@@ -32,18 +32,23 @@ def gaussian_prob(x,m,C,use_log=False):
         p = numpy.exp( -0.5*mahal ) / (denom+eps)
     return p
 
-def DROsmooth(y,F,H,Q,R,xhat_a_priori_0,Sigma_a_priori_0,forward_only=False):
+def DROsmooth(y,F,H,Q,R,xhat_a_priori_0,Sigma_a_priori_0,mode='smooth',EM_max_iter=10):
     """
+mode - one of 'forward_only', 'EM', 'smooth'. default='smooth'
+
 from:
 Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
       linear system with the EM algorithm and its application to
       speech recognition", IEEE Trans. Speech and Audio Proc.,
       1(4):431--442, 1993.
 """
+    assert mode in ['forward_only', 'EM', 'smooth']
     inv = numpy.linalg.inv
     ones = numpy.matlib.ones
     zeros = numpy.matlib.zeros
     nan = numpy.nan
+    def empty(*args,**kw):
+        return nan*ones(*args,**kw)
 
     y = numpy.matrix(y.T)
     F = numpy.matrix(F)
@@ -51,71 +56,95 @@ Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
     Q = numpy.matrix(Q)
     R = numpy.matrix(R)
 
-    def empty(*args,**kw):
-        return nan*ones(*args,**kw)
-
     ss = F.shape[0]
     os,N = y.shape
 
-    # pre-allocate matrices
-    xhat_a_priori = empty( (ss,N) )
-    xhat_a_posteri = empty( (ss,N) )
-    xhat_smoothed = empty( (ss,N) )
-    Sigma_a_priori = [None]*N
-    Sigma_a_posteri = [None]*N
-    Sigma_smoothed = [None]*N
-    Sigma_cross = [None]*N
-    Sigma_cross_smoothed = [None]*N
-    I = numpy.matlib.eye(ss)
+    for iter_num in range(EM_max_iter):
+        if 0 and mode=='EM':
+            print
+            print 'iter_num',iter_num
+            print 'F',F
 
-    # initial values
-    xhat_a_priori[:,0] = numpy.matrix(xhat_a_priori_0).T
-    Sigma_a_priori[0] = numpy.matrix(Sigma_a_priori_0)
+        # pre-allocate matrices
+        xhat_a_priori = empty( (ss,N) )
+        xhat_a_posteri = empty( (ss,N) )
+        xhat_smoothed = empty( (ss,N) )
+        Sigma_a_priori = [None]*N
+        Sigma_a_posteri = [None]*N
+        Sigma_smoothed = [None]*N
+        Sigma_cross = [None]*N
+        Sigma_cross_smoothed = [None]*N
+        I = numpy.matlib.eye(ss)
 
-    # forward recursions
-    for k in range(N):
-        e_k = y[:,k] - H*xhat_a_priori[:,k] # 15c, error/innovation
-        Sigma_e_k = H*Sigma_a_priori[k]*H.T + R # 15e, covariance
-        K_k = Sigma_a_priori[k]*H.T*inv(Sigma_e_k) # 15d, Kalman gain
+        # ******** E-step **************
 
-        xhat_a_posteri[:,k] = xhat_a_priori[:,k] + K_k*e_k # 15a, update state
+        # initial values
+        xhat_a_priori[:,0] = numpy.matrix(xhat_a_priori_0).T
+        Sigma_a_priori[0] = numpy.matrix(Sigma_a_priori_0)
 
-        Sigma_a_posteri[k] = Sigma_a_priori[k] - K_k*Sigma_e_k*K_k.T # 15f, update covariance
-        if k>=1:
-            Sigma_cross[k] = (I-K_k*H)*F*Sigma_a_posteri[k-1] # 15g
-        if (k+1)<N:
-            # predictions (calculation of a priori)
-            xhat_a_priori[:,k+1] = F*xhat_a_posteri[:,k] # 15b, predict state
-            Sigma_a_priori[k+1] = F*Sigma_a_posteri[k]*F.T + Q # 15h, predict covariance
-
-    if forward_only:
-        # return as arrays (not matrices)
-        xfilt = numpy.array(xhat_a_posteri.T)
-        Vfilt = numpy.zeros((N,ss,ss))
+        # forward recursions
         for k in range(N):
-            Vfilt[k,:,:] = Sigma_a_posteri[k]
-        return xfilt, Vfilt
+            e_k = y[:,k] - H*xhat_a_priori[:,k] # 15c, error/innovation
+            Sigma_e_k = H*Sigma_a_priori[k]*H.T + R # 15e, covariance
+            K_k = Sigma_a_priori[k]*H.T*inv(Sigma_e_k) # 15d, Kalman gain
 
-    # initialize
-    xhat_smoothed[:,-1] = xhat_a_posteri[:,-1]
-    Sigma_smoothed[-1] = Sigma_a_posteri[-1]
+            xhat_a_posteri[:,k] = xhat_a_priori[:,k] + K_k*e_k # 15a, update state
 
-    # backward recursions
-    for k in range(N-1,-1,-1):
-        A_k = Sigma_a_posteri[k-1]*F.T*inv(Sigma_a_priori[k]) # 16c # XXX must be done before 16a(?)
-        xhat_smoothed[:,k-1] = xhat_a_posteri[:,k-1] + A_k*(xhat_smoothed[:,k] - xhat_a_priori[:,k]) # 16a
-        Sigma_smoothed[k-1] = Sigma_a_posteri[k-1] + A_k*(Sigma_smoothed[k] - Sigma_a_priori[k])*A_k.T # 16b
-        if k>=1:
-            Sigma_cross_smoothed[k] = (Sigma_cross[k] +
-                                       (Sigma_smoothed[k] -
-                                        Sigma_a_posteri[k])*inv(Sigma_a_posteri[k])*Sigma_cross[k]) # 16d
+            Sigma_a_posteri[k] = Sigma_a_priori[k] - K_k*Sigma_e_k*K_k.T # 15f, update covariance
+            if k>=1:
+                Sigma_cross[k] = (I-K_k*H)*F*Sigma_a_posteri[k-1] # 15g
+            if (k+1)<N:
+                # predictions (calculation of a priori)
+                xhat_a_priori[:,k+1] = F*xhat_a_posteri[:,k] # 15b, predict state
+                Sigma_a_priori[k+1] = F*Sigma_a_posteri[k]*F.T + Q # 15h, predict covariance
 
-    # return as arrays (not matrices)
-    xsmooth = numpy.array(xhat_smoothed.T)
-    Vsmooth = numpy.zeros((N,ss,ss))
-    for k in range(N):
-        Vsmooth[k,:,:] = Sigma_smoothed[k]
-    return xsmooth, Vsmooth
+        if mode=='forward_only':
+            # return as arrays (not matrices)
+            xfilt = numpy.array(xhat_a_posteri.T)
+            Vfilt = numpy.zeros((N,ss,ss))
+            for k in range(N):
+                Vfilt[k,:,:] = Sigma_a_posteri[k]
+            return xfilt, Vfilt
+
+        # initialize
+        xhat_smoothed[:,-1] = xhat_a_posteri[:,-1]
+        Sigma_smoothed[-1] = Sigma_a_posteri[-1]
+
+        # backward recursions
+        for k in range(N-1,-1,-1):
+            A_k = Sigma_a_posteri[k-1]*F.T*inv(Sigma_a_priori[k]) # 16c # XXX must be done before 16a(?)
+            xhat_smoothed[:,k-1] = xhat_a_posteri[:,k-1] + A_k*(xhat_smoothed[:,k] - xhat_a_priori[:,k]) # 16a
+            Sigma_smoothed[k-1] = Sigma_a_posteri[k-1] + A_k*(Sigma_smoothed[k] - Sigma_a_priori[k])*A_k.T # 16b
+            if k>=1:
+                Sigma_cross_smoothed[k] = (Sigma_cross[k] +
+                                           (Sigma_smoothed[k] -
+                                            Sigma_a_posteri[k])*inv(Sigma_a_posteri[k])*Sigma_cross[k]) # 16d
+
+        if mode=='smooth':
+            # return as arrays (not matrices)
+            xsmooth = numpy.array(xhat_smoothed.T)
+            Vsmooth = numpy.zeros((N,ss,ss))
+            for k in range(N):
+                Vsmooth[k,:,:] = Sigma_smoothed[k]
+            return xsmooth, Vsmooth
+
+        # ******** M-step **************
+
+        # For comparision with DRO's equations, note the following is true:
+        # numpy.sum([y[:,i]*x[:,i].T for i in range(3)]) == y*x.T
+
+        Gamma1 = 1/(N+1)* xhat_smoothed*xhat_smoothed.T # 11a
+        Gamma2 = 1/N    * xhat_smoothed[:,1:]*xhat_smoothed[:,1:].T # 11b
+        Gamma3 = 1/N    * xhat_smoothed[:,:-1]*xhat_smoothed[:,:-1].T # 11c
+        Gamma4 = 1/N    * xhat_smoothed[:,1:]*xhat_smoothed[:,:-1].T # 11d
+        Gamma5 = 1/(N+1)* y*y.T # 11e
+        Gamma6 = 1/(N+1)* y*xhat_smoothed.T # 11e
+
+        # now estimate new matrices
+        F = Gamma4*inv(Gamma3) # 10a
+        H = Gamma6*inv(Gamma1) # 10b
+        Q = Gamma2 - F*Gamma4.T # 10c
+        R = Gamma5 - H*Gamma6.T # 10d
 
 class KalmanFilter:
     def __init__(self,A,C,Q,R,initial_x,initial_P):
