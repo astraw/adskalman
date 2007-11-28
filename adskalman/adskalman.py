@@ -104,13 +104,17 @@ Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
 
         # forward recursions
         for k in range(N):
-            e_k = y[:,k] - H*xhat_a_priori[:,k] # 15c, error/innovation
-            Sigma_e_k = H*Sigma_a_priori[k]*H.T + R # 15e, covariance
-            K_k = Sigma_a_priori[k]*H.T*inv(Sigma_e_k) # 15d, Kalman gain
+            have_observation = not numpy.any(numpy.isnan(y[:,k]))
+            if have_observation:
+                e_k = y[:,k] - H*xhat_a_priori[:,k] # 15c, error/innovation
+                Sigma_e_k = H*Sigma_a_priori[k]*H.T + R # 15e, covariance
+                K_k = Sigma_a_priori[k]*H.T*inv(Sigma_e_k) # 15d, Kalman gain
+                xhat_a_posteri[:,k] = xhat_a_priori[:,k] + K_k*e_k # 15a, update state
+                Sigma_a_posteri[k] = Sigma_a_priori[k] - K_k*Sigma_e_k*K_k.T # 15f, update covariance
+            else:
+                xhat_a_posteri[:,k] = xhat_a_priori[:,k]
+                Sigma_a_posteri[k] = Sigma_a_priori[k]
 
-            xhat_a_posteri[:,k] = xhat_a_priori[:,k] + K_k*e_k # 15a, update state
-
-            Sigma_a_posteri[k] = Sigma_a_priori[k] - K_k*Sigma_e_k*K_k.T # 15f, update covariance
             if k>=1:
                 Sigma_cross[k] = (I-K_k*H)*F*Sigma_a_posteri[k-1] # 15g
             if (k+1)<N:
@@ -132,9 +136,19 @@ Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
 
         # backward recursions
         for k in range(N-1,-1,-1):
-            A_k = Sigma_a_posteri[k-1]*F.T*inv(Sigma_a_priori[k]) # 16c # XXX must be done before 16a(?)
-            xhat_smoothed[:,k-1] = xhat_a_posteri[:,k-1] + A_k*(xhat_smoothed[:,k] - xhat_a_priori[:,k]) # 16a
-            Sigma_smoothed[k-1] = Sigma_a_posteri[k-1] + A_k*(Sigma_smoothed[k] - Sigma_a_priori[k])*A_k.T # 16b
+            if 0:
+                A_k = Sigma_a_posteri[k-1]*F.T*inv(Sigma_a_priori[k]) # 16c # XXX must be done before 16a(?)
+                xhat_smoothed[:,k-1] = xhat_a_posteri[:,k-1] + A_k*(xhat_smoothed[:,k] - xhat_a_priori[:,k]) # 16a
+                Sigma_smoothed[k-1] = Sigma_a_posteri[k-1] + A_k*(Sigma_smoothed[k] - Sigma_a_priori[k])*A_k.T # 16b
+            else:
+                # with inspiration from KPM's smooth_update
+                x_pred = F*xhat_a_posteri[:,k-1]
+                #x_pred = xhat_a_posteri[:,k-1]*F.T
+                Sigma_pred = F*Sigma_a_posteri[k-1]*F.T + Q
+
+                A_k = Sigma_a_posteri[k-1]*F.T*inv(Sigma_pred)
+                xhat_smoothed[:,k-1] = xhat_a_posteri[:,k-1] + A_k*(xhat_smoothed[:,k] - x_pred)
+                Sigma_smoothed[k-1] = Sigma_a_posteri[k-1] + A_k*(Sigma_smoothed[k] - Sigma_pred)*A_k.T # 16b
             if k>=1:
                 Sigma_cross_smoothed[k] = (Sigma_cross[k] +
                                            (Sigma_smoothed[k] -
@@ -154,13 +168,57 @@ Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
         # numpy.sum([y[:,i]*x[:,i].T for i in range(3)]) == y*x.T
         x = xhat_smoothed
 
+        if 0:
+            y_yT = y*y.T
+            y_xT = y*x.T
+        else:
+            # deal with missing data
+            for k in range(N):
+                have_observation = not numpy.any(numpy.isnan(y[:,k]))
+                if have_observation:
+                    tmp = None
+                    yk_ykT = y[:,k]*y[:,k].T
+                    yk_xkT = y[:,k]*x[:,k].T
+                else:
+                    tmp = x[:,k]*x[:,k].T
+                    yk_ykT = R + H*tmp*H.T
+                    yk_xkT = H*tmp
+
+                if 0:# or not have_observation:
+                    print
+                    print k, have_observation
+                    print 'numpy.isnan(y[:,k])',numpy.isnan(y[:,k])
+                    print 'numpy.any(numpy.isnan(y[:,k]))',numpy.any(numpy.isnan(y[:,k]))
+                    print 'tmp',tmp
+                    print 'y[:,k]',y[:,k]
+                    print 'x[:,k]',x[:,k]
+                    print 'H',H
+                    print ' yk_ykT\n'+str(yk_ykT)
+                    print ' yk_xkT\n'+str(yk_xkT)
+
+                if k==0:
+                    y_yT = yk_ykT
+                    y_xT = yk_xkT
+                else:
+                    y_yT += yk_ykT
+                    y_xT += yk_xkT
+
+                if 0:
+                    print ' y_yT\n'+str(y_yT)
+                    print ' y_xT\n'+str(y_xT)
+
         Gamma1 = 1/(N+1)* x*x.T # 11a
         Gamma2 = 1/N    * x[:,1:]*x[:,1:].T # 11b
         Gamma3 = 1/N    * x[:,:-1]*x[:,:-1].T # 11c
         Gamma4 = 1/N    * x[:,1:]*x[:,:-1].T # 11d
-        Gamma5 = 1/(N+1)* y*y.T # 11e
-        Gamma6 = 1/(N+1)* y*x.T # 11e
+        Gamma5 = 1/(N+1)* y_yT # 11e
+        Gamma6 = 1/(N+1)* y_xT # 11f
 
+        if 0:
+            print 'y_yT',y_yT
+            print 'y_xT',y_xT
+            print 'Gamma5',Gamma5
+            print 'Gamma6',Gamma6
         # now estimate new matrices
         F = Gamma4*inv(Gamma3) # 10a
         H = Gamma6*inv(Gamma1) # 10b
@@ -172,6 +230,9 @@ Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
         logdetQ = log(abs(det(Q)))
         invQ = inv(Q)
         logdetR = log(abs(det(R)))
+        if 0:
+            print 'R',R
+            print 'inv(R)',inv(R)
         invR = inv(R)
 
         if 0:
@@ -200,6 +261,13 @@ Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
         previous_loglik = loglik
         if converged:
             break
+
+    # return as arrays (not matrices)
+    xsmooth = numpy.array(xhat_smoothed.T)
+    Vsmooth = numpy.zeros((N,ss,ss))
+    for k in range(N):
+        Vsmooth[k,:,:] = Sigma_smoothed[k]
+    return xsmooth, Vsmooth, F, H, Q, R
 
 class KalmanFilter:
     def __init__(self,A,C,Q,R,initial_x,initial_P):

@@ -197,8 +197,32 @@ class TestKalman(unittest.TestCase):
             print 'Vsmooth',Vsmooth
         assert numpy.allclose(xsmooth.T[:,:-1],kpm['xsmooth'][:,:-1]) # KPM doesn't update last timestep
         assert_3d_vs_kpm_close(Vsmooth[:-1],kpm['Vsmooth'][:,:,:-1])
+        #assert numpy.allclose(xsmooth.T,kpm['xsmooth'])
+        #assert_3d_vs_kpm_close(Vsmooth,kpm['Vsmooth'])
 
-        results = adskalman.DROsmooth(y,A,C,Q,R,initx,initV,mode='EM')
+        xsmooth, Vsmooth, F, H, Q, R = adskalman.DROsmooth(y,A,C,Q,R,initx,initV,mode='EM')
+
+    def test_learn_missing_DRO_nan(self):
+        kpm=scipy.io.loadmat('kpm_learn_results')
+
+        y = kpm['y'].T # data vector is transposed from KPM
+        F1 = kpm['F1']
+        H1 = kpm['H1']
+        Q1 = kpm['Q1']
+        R1 = kpm['R1']
+        initx1 = kpm['initx']
+        initV1 = kpm['initV']
+        max_iter = kpm['max_iter']
+        T,os = y.shape
+        if 1:
+            if T>2:
+                y[2,:] = numpy.nan * numpy.ones( (os,) )
+            if T>12:
+                y[12,:] = numpy.nan * numpy.ones( (os,) )
+        xsmooth, Vsmooth, F2, H2, Q2, R2 = adskalman.DROsmooth(y,F1, H1, Q1, R1, initx1, initV1,mode='EM',EM_max_iter=max_iter)
+        #F2_kpm, H2, Q2, R2, initx2, initV2, LL = adskalman.learn_kalman(y, F1, H1, Q1, R1, initx1, initV1, max_iter)
+        #print 'F2_kpm',kpm['F2']
+        #print 'F2',F2
 
     def test_smooth_missing(self):
         kpm=scipy.io.loadmat('kpm_learn_results')
