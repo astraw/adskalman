@@ -13,4 +13,7 @@ setup(name='adskalman',
       author_email='strawman@astraw.com',
       zip_safe=True,
       packages = ['adskalman'],
+      package_data={'adskalman':['table*.csv',
+                                 '*.mat'
+                                 ]},
       )

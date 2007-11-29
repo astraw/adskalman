@@ -3,6 +3,8 @@ import adskalman
 import numpy
 import scipy.io
 import scipy.stats
+import matplotlib.mlab
+import pkg_resources
 
 def assert_3d_vs_kpm_close(A,B,debug=False):
     """compare my matrices (where T dimension is first) vs. KPM's (where it's last)"""
@@ -87,7 +89,7 @@ class TestKalman(unittest.TestCase):
         # XXX some comparison between xs and xhats
 
     def test_filt_KPM(self):
-        kpm=scipy.io.loadmat('kpm_results')
+        kpm=scipy.io.loadmat(pkg_resources.resource_filename(__name__,'kpm_results'))
         # process model
         A = numpy.array([[1, 0, 1, 0],
                          [0, 1, 0, 1],
@@ -118,7 +120,7 @@ class TestKalman(unittest.TestCase):
         assert_3d_vs_kpm_close(Vsmooth,kpm['Vsmooth'])
 
     def test_filt_KPM_loglik(self):
-        kpm=scipy.io.loadmat('kpm_results')
+        kpm=scipy.io.loadmat(pkg_resources.resource_filename(__name__,'kpm_results'))
         # process model
         A = numpy.array([[1, 0, 1, 0],
                          [0, 1, 0, 1],
@@ -156,7 +158,7 @@ class TestKalman(unittest.TestCase):
         assert numpy.allclose(loglik,kpm['loglik_smooth'])
 
     def test_DRO_smooth(self):
-        kpm=scipy.io.loadmat('kpm_results')
+        kpm=scipy.io.loadmat(pkg_resources.resource_filename(__name__,'kpm_results'))
         # process model
         A = numpy.array([[1, 0, 1, 0],
                          [0, 1, 0, 1],
@@ -203,7 +205,7 @@ class TestKalman(unittest.TestCase):
         xsmooth, Vsmooth, F, H, Q, R = adskalman.DROsmooth(y,A,C,Q,R,initx,initV,mode='EM')
 
     def test_learn_missing_DRO_nan(self):
-        kpm=scipy.io.loadmat('kpm_learn_results')
+        kpm=scipy.io.loadmat(pkg_resources.resource_filename(__name__,'kpm_learn_results'))
 
         y = kpm['y'].T # data vector is transposed from KPM
         F1 = kpm['F1']
@@ -225,7 +227,7 @@ class TestKalman(unittest.TestCase):
         #print 'F2',F2
 
     def test_smooth_missing(self):
-        kpm=scipy.io.loadmat('kpm_learn_results')
+        kpm=scipy.io.loadmat(pkg_resources.resource_filename(__name__,'kpm_learn_results'))
 
         y = kpm['y'].T # data vector is transposed from KPM
         F1 = kpm['F1']
@@ -258,7 +260,7 @@ class TestKalman(unittest.TestCase):
         assert numpy.allclose(Vsmooth_nan, Vsmooth_none)
 
     def test_learn_missing_nan(self):
-        kpm=scipy.io.loadmat('kpm_learn_results')
+        kpm=scipy.io.loadmat(pkg_resources.resource_filename(__name__,'kpm_learn_results'))
 
         y = kpm['y'].T # data vector is transposed from KPM
         F1 = kpm['F1']
@@ -276,7 +278,7 @@ class TestKalman(unittest.TestCase):
         F2, H2, Q2, R2, initx2, initV2, LL = adskalman.learn_kalman(y, F1, H1, Q1, R1, initx1, initV1, max_iter)
 
     def test_learn_KPM(self):
-        kpm=scipy.io.loadmat('kpm_learn_results')
+        kpm=scipy.io.loadmat(pkg_resources.resource_filename(__name__,'kpm_learn_results'))
 
         y = kpm['y'].T # data vector is transposed from KPM
         F1 = kpm['F1']
@@ -298,7 +300,7 @@ class TestKalman(unittest.TestCase):
 
     def test_loglik_KPM(self):
         # this test broke the loglik calculation
-        kpm=scipy.io.loadmat('kpm_learn_results')
+        kpm=scipy.io.loadmat(pkg_resources.resource_filename(__name__,'kpm_learn_results'))
         y = kpm['y'].T # data vector is transposed from KPM
         F1 = kpm['F1']
         H1 = kpm['H1']
@@ -319,6 +321,13 @@ class TestKalman(unittest.TestCase):
         assert_3d_vs_kpm_close(Vsmooth, kpm['Vsmooth'])
         assert_3d_vs_kpm_close(VVsmooth, kpm['VVsmooth'])
         assert numpy.allclose(loglik_smooth, kpm['loglik_smooth'])
+
+    def test_DRO_on_Shumway_Stoffer(self):
+        fname = pkg_resources.resource_filename(__name__,'table1.csv')
+        table1 = matplotlib.mlab.csv2rec(fname)
+
+        fname = pkg_resources.resource_filename(__name__,'table2.csv')
+        table2 = matplotlib.mlab.csv2rec(fname)
 
 def get_test_suite():
     ts=unittest.TestSuite([unittest.makeSuite(TestKalman),
