@@ -1,7 +1,8 @@
 from __future__ import division
 import numpy
 import numpy.matlib
-import scikits.learn.machine.em.densities as densities
+linalg = numpy.linalg
+#import scikits.learn.machine.em.densities as densities
 
 # For treatment of missing data, see:
 #
@@ -9,8 +10,40 @@ import scikits.learn.machine.em.densities as densities
 # smoothing and forecasting using the EM algorithm. Journal of Time
 # Series Analysis, 3, 253-264. http://www.stat.pitt.edu/stoffer/em.pdf
 
+def rand_mvn(mu,sigma,N):
+    """generate multivariate normal samples
+input:
+  mu - a length M vector, the mean of the distribution
+  sigma - an M by M array, the covariance of the distribution
+  N - a scalar N, the number of samples to generate
+output:
+  Y - an N by M array, N samples with mean mu and covariance sigma
+"""
+    M = sigma.shape[0]
+    X = numpy.random.standard_normal((M,N))
+    Y = numpy.dot( linalg.cholesky(sigma), X ).T + mu
+    return Y
+
+def covar(x):
+    """determine the sample covariance matrix of x
+
+input:
+  x - an N by M array, N samples of an M component vector
+output:
+  sigma - and M by M array, the covariance matrix
+"""
+    mu = numpy.mean(x,axis=0)
+    N = x.shape[0]
+    y = x-mu
+    sigma = numpy.dot(y.T,y)/(N-1)
+
+    # Note, the maximum likelihood estimator is /N [not /(N-1)] as
+    # above, but that works only for a multivariate normal.
+
+    return sigma
+
 def gaussian_prob(x,m,C,use_log=False):
-    if 1:
+    if 0:
         return numpy.asscalar(densities.gauss_den(x,m,C,log=use_log))
     # Kevin Murphy's implementation
     m = numpy.atleast_1d(m)
@@ -28,7 +61,8 @@ def gaussian_prob(x,m,C,use_log=False):
     if use_log:
         p = -0.5*mahal - numpy.log(denom)
     else:
-        eps=2**-52
+        eps = numpy.finfo(numpy.float64).eps
+        #eps=2**-52
         p = numpy.exp( -0.5*mahal ) / (denom+eps)
     return p
 
@@ -38,12 +72,13 @@ def em_converged(loglik, previous_loglik, threshold=1e-4, check_increased=True):
     decrease = False
     if check_increased:
         if loglik - previous_loglik < -1e-3:
-            print '******likelihood decreased from %6.4f to %6.4f!'%(previous_loglik, loglik)
+            #print '******likelihood decreased from %6.4f to %6.4f!'%(previous_loglik, loglik)
             decrease = True
             converged = False
             return converged, decrease
     delta_loglik = abs(loglik - previous_loglik)
-    eps=2**-52
+    eps = numpy.finfo(numpy.float64).eps
+    #eps=2**-52
     avg_loglik = (abs(loglik) + abs(previous_loglik) + eps)/2
     if (delta_loglik/avg_loglik) < threshold:
         converged = True
@@ -74,16 +109,18 @@ Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
     H = numpy.matrix(H)
     Q = numpy.matrix(Q)
     R = numpy.matrix(R)
+    Hshape = H.shape
+    print 'Hshape',Hshape
 
     ss = F.shape[0]
     os,N = y.shape
 
     previous_loglik = -numpy.inf
     for iter_num in range(EM_max_iter):
-        if 0 and mode=='EM':
+        if 1 and mode=='EM':
+            print 'previous_loglik',previous_loglik
             print
             print 'iter_num',iter_num
-            print 'F',F
 
         # pre-allocate matrices
         xhat_a_priori = empty( (ss,N) )
@@ -168,7 +205,7 @@ Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
         # numpy.sum([y[:,i]*x[:,i].T for i in range(3)]) == y*x.T
         x = xhat_smoothed
 
-        if 0:
+        if 1:
             y_yT = y*y.T
             y_xT = y*x.T
         else:
@@ -214,51 +251,64 @@ Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
         Gamma5 = 1/(N+1)* y_yT # 11e
         Gamma6 = 1/(N+1)* y_xT # 11f
 
-        if 0:
+        if 1:
             print 'y_yT',y_yT
             print 'y_xT',y_xT
             print 'Gamma5',Gamma5
             print 'Gamma6',Gamma6
         # now estimate new matrices
-        F = Gamma4*inv(Gamma3) # 10a
-        H = Gamma6*inv(Gamma1) # 10b
-        Q = Gamma2 - F*Gamma4.T # 10c
-        R = Gamma5 - H*Gamma6.T # 10d
+        Fhat = Gamma4*inv(Gamma3) # 10a
+        Hhat = Gamma6*inv(Gamma1) # 10b
+        assert Hshape == Hhat.shape
+        print 'Hshape',H.shape
+
+        Qhat = Gamma2 - F*Gamma4.T # 10c
+        Rhat = Gamma5 - H*Gamma6.T # 10d
 
         # now evaluate convergence
         # compute once outside loops
-        logdetQ = log(abs(det(Q)))
-        invQ = inv(Q)
-        logdetR = log(abs(det(R)))
-        if 0:
-            print 'R',R
-            print 'inv(R)',inv(R)
-        invR = inv(R)
+        logdetQ = log(abs(det(Qhat)))
+        invQ = inv(Qhat)
+        logdetR = log(abs(det(Rhat)))
+        if 1:
+            print 'F',Fhat
+            print 'H',Hhat
 
-        if 0:
-            print 'Q',Q
-            print det(Q)
+            print 'Q',Qhat
+            print 'R',Rhat
+            print 'inv(R)',inv(Rhat)
+        invR = inv(Rhat)
+
+        if 1:
+            print det(Qhat)
             print 'logdetQ',logdetQ
             print 'invQ',invQ
-            print 'R',R
+            print 'R',Rhat
             print 'logdetR',logdetR
             print 'invR',invR
         ll1 = 0
         for k in range(1,N):
             # log likelihood of x_k given x_{k-1}
-            tmp1 = x[:,k] - F*x[:,k-1]
+            tmp1 = x[:,k] - Fhat*x[:,k-1]
             ll1 += logdetQ + tmp1.T*invQ*tmp1
 
         ll2 = 0
         for k in range(N):
             # log likelihood of y_k given x_k
-            tmp2 = y[:,k] - H*x[:,k]
+            tmp2 = y[:,k] - Hhat*x[:,k]
             ll2 += logdetR + tmp2.T*invR*tmp2
         loglik = -(ll1 + ll2) # 9
         thresh = 1e-4
         #print 'loglik',loglik
         converged, em_decrease = em_converged(loglik, previous_loglik, thresh)
         previous_loglik = loglik
+        if em_decrease:
+            # likelihood is decreasing, use old estimates and quit
+            break
+        F = Fhat
+        H = Hhat
+        Q = Qhat
+        R = Rhat
         if converged:
             break
 
