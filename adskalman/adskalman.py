@@ -2,7 +2,7 @@ from __future__ import division
 import numpy
 import numpy.matlib
 linalg = numpy.linalg
-#import scikits.learn.machine.em.densities as densities
+import scikits.learn.machine.em.densities as densities
 
 # For treatment of missing data, see:
 #
@@ -43,7 +43,7 @@ output:
     return sigma
 
 def gaussian_prob(x,m,C,use_log=False):
-    if 0:
+    if 1:
         return numpy.asscalar(densities.gauss_den(x,m,C,log=use_log))
     # Kevin Murphy's implementation
     m = numpy.atleast_1d(m)
@@ -89,9 +89,9 @@ def DROsmooth(y,F,H,Q,R,xhat_a_priori_0,Sigma_a_priori_0,mode='smooth',EM_max_it
 mode - one of 'forward_only', 'EM', 'smooth'. default='smooth'
 
 from:
-Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
+Digalakis, Rohlicek and Ostendorf, 'ML Estimation of a stochastic
       linear system with the EM algorithm and its application to
-      speech recognition", IEEE Trans. Speech and Audio Proc.,
+      speech recognition', IEEE Trans. Speech and Audio Proc.,
       1(4):431--442, 1993.
 """
     assert mode in ['forward_only', 'EM', 'smooth']
@@ -109,8 +109,6 @@ Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
     H = numpy.matrix(H)
     Q = numpy.matrix(Q)
     R = numpy.matrix(R)
-    Hshape = H.shape
-    print 'Hshape',Hshape
 
     ss = F.shape[0]
     os,N = y.shape
@@ -202,7 +200,7 @@ Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
         # ******** M-step **************
 
         # For comparision with DRO's equations, note the following is true:
-        # numpy.sum([y[:,i]*x[:,i].T for i in range(3)]) == y*x.T
+        # numpy.sum([y[:,i]*x[:,i].T for i in range(N)]) == y*x.T
         x = xhat_smoothed
 
         if 1:
@@ -254,14 +252,14 @@ Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
         if 1:
             print 'y_yT',y_yT
             print 'y_xT',y_xT
+            print 'Gamma4',Gamma4
+            print 'Gamma3',Gamma3
+            print 'inv(Gamma3)',inv(Gamma3)
             print 'Gamma5',Gamma5
             print 'Gamma6',Gamma6
         # now estimate new matrices
         Fhat = Gamma4*inv(Gamma3) # 10a
         Hhat = Gamma6*inv(Gamma1) # 10b
-        assert Hshape == Hhat.shape
-        print 'Hshape',H.shape
-
         Qhat = Gamma2 - F*Gamma4.T # 10c
         Rhat = Gamma5 - H*Gamma6.T # 10d
 
@@ -304,6 +302,8 @@ Digalakis, Rohlicek and Ostendorf, "ML Estimation of a stochastic
         previous_loglik = loglik
         if em_decrease:
             # likelihood is decreasing, use old estimates and quit
+            if 1:
+                raise RuntimeError('likelihood decreased!')
             break
         F = Fhat
         H = Hhat
@@ -525,8 +525,10 @@ def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None,full_output=Fals
         return xsmooth, Vsmooth
 
 def learn_kalman(data, A, C, Q, R, initx, initV,
-                 max_iter=10, diagQ=False, diagR=False,
-                 ARmode=False, constr_fun_dict={},verbose=False):
+                 max_iter=50, diagQ=False, diagR=False,
+                 ARmode=False, constr_fun_dict={},
+                 thresh=1e-4,
+                 verbose=False):
     """
 
     If data is a list of (potentially variable length) arrays, each
@@ -565,7 +567,6 @@ def learn_kalman(data, A, C, Q, R, initx, initV,
         x1 = xsmooth[0,:]
         V1 = Vsmooth[0,:,:]
         return beta, gamma, delta, gamma1, gamma2, x1, V1, loglik
-    thresh = 1e-4
 
     ss = A.shape[0]
     os = C.shape[0]
@@ -613,6 +614,9 @@ def learn_kalman(data, A, C, Q, R, initx, initV,
     LL = []
 
     while (not converged) and (num_iter < max_iter):
+        if verbose>1:
+            print
+            print 'num_iter',num_iter
         # E step
         delta = numpy.zeros((os,ss))
         gamma = numpy.zeros((ss,ss))
@@ -643,6 +647,10 @@ def learn_kalman(data, A, C, Q, R, initx, initV,
         # M step
         Tsum1 = Tsum-N
         A = numpy.dot(beta,inv(gamma1))
+        if verbose>1:
+            print 'beta',beta
+            print 'inv(gamma1)',inv(gamma1)
+            print 'A',A
         Q = (gamma2 - numpy.dot(A,beta.T))/Tsum1
         if diagQ:
             Q = numpy.diag( numpy.diag(Q) )
@@ -654,7 +662,32 @@ def learn_kalman(data, A, C, Q, R, initx, initV,
         initx = x1sum/N
         initV = P1sum/N - numpy.dot(initx[:,numpy.newaxis],initx[:,numpy.newaxis].T)
         if len(constr_fun_dict.keys()):
-            raise NotImplementedError("")
+            A = constr_fun_dict.get('A',lambda orig: orig)(A)
+            C = constr_fun_dict.get('C',lambda orig: orig)(C)
+            Q = constr_fun_dict.get('Q',lambda orig: orig)(Q)
+            R = constr_fun_dict.get('R',lambda orig: orig)(R)
+            #raise NotImplementedError("")
         converged, em_decrease = em_converged(loglik, previous_loglik, thresh)
         previous_loglik = loglik
+        if 1:
+            if em_decrease:
+                # restore old, OK values
+                A = Alast
+                C = Clast
+                Q = Qlast
+                R = Rlast
+                initx = initxlast
+                initV = initVlast
+                LL = LLlast
+                print 'WARNING: likelihood decreasing! stopping!'
+                break
+            else:
+                # save values in case likelihood decreases next iteration
+                Alast = A
+                Clast = C
+                Qlast = Q
+                Rlast = R
+                initxlast = initx
+                initVlast = initV
+                LLlast = LL
     return A, C, Q, R, initx, initV, LL
