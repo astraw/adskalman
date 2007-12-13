@@ -1,4 +1,5 @@
 from __future__ import division
+import sets
 import numpy
 import numpy.matlib
 linalg = numpy.linalg
@@ -473,6 +474,14 @@ def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None,full_output=Fals
 
     N.B. Axes are swapped relative to Kevin Murphy's example, because
     in all my data, time is the first dimension."""
+
+    if valid_data_idx is not None:
+        y = numpy.array(y,copy=True)
+        valid_data_idx = sets.Set(valid_data_idx)
+        all_idx = sets.Set(range(len(y)))
+        bad_idx = list(all_idx - valid_data_idx)
+        for i in bad_idx:
+            y[i] = numpy.nan*y[i]
 
     def smooth_update(xsmooth_future,Vsmooth_future,xfilt,Vfilt,Vfilt_future,VVfilt_future,A,Q,full_output=False):
         dot = numpy.dot
