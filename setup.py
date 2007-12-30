@@ -1,7 +1,7 @@
 from setuptools import setup
 import os, sys
 
-from motmot_utils import get_svnversion_persistent
+from motmot.utils.utils import get_svnversion_persistent
 version_str = '0.2.dev%(svnversion)s'
 version = get_svnversion_persistent(
     os.path.join('adskalman','version.py'),
