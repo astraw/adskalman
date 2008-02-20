@@ -326,6 +326,9 @@ class KalmanFilter:
         self.C = C # observation model
         self.Q = Q # process covariance matrix
         self.R = R # measurement covariance matrix
+
+        # These 2 attributes are the only state that changes during
+        # filtering:
         self.xhat_k1 = initial_x # a posteri state estimate from step (k-1)
         self.P_k1 = initial_P    # a posteri error estimate from step (k-1)
 
