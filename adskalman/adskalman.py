@@ -463,7 +463,9 @@ def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None,full_output=Fals
     R - observation covariance matrix
     init_x - initial state
     init_V - initial error estimate
-    valid_data_idx - (optional) indices to rows of y that are valid (None if all data valid)
+    valid_data_idx - (optional) Indices to rows of y that are valid or
+        boolean array of len(y). (None if all data valid.)  Note that
+        this is not necessary if y is nan where data are invalid.
 
     returns
     -------
@@ -479,12 +481,17 @@ def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None,full_output=Fals
     in all my data, time is the first dimension."""
 
     if valid_data_idx is not None:
-        y = numpy.array(y,copy=True)
-        valid_data_idx = sets.Set(valid_data_idx)
-        all_idx = sets.Set(range(len(y)))
-        bad_idx = list(all_idx - valid_data_idx)
-        for i in bad_idx:
-            y[i] = numpy.nan*y[i]
+        if hasattr(valid_data_idx,'dtype') and valid_data_idx.dtype == numpy.bool:
+            assert len(valid_data_idx) == len(y)
+            invalid_cond = ~valid_data_idx
+            y[invalid_cond] = numpy.nan # broadcast
+        else:
+            y = numpy.array(y,copy=True)
+            valid_data_idx = sets.Set(valid_data_idx)
+            all_idx = sets.Set(range(len(y)))
+            bad_idx = list(all_idx - valid_data_idx)
+            for i in bad_idx:
+                y[i] = numpy.nan # broadcast
 
     def smooth_update(xsmooth_future,Vsmooth_future,xfilt,Vfilt,Vfilt_future,VVfilt_future,A,Q,full_output=False):
         dot = numpy.dot
