@@ -125,10 +125,10 @@ Digalakis, Rohlicek and Ostendorf, 'ML Estimation of a stochastic
 
         # pre-allocate matrices
         xhat_a_priori = empty( (ss,N) )
-        xhat_a_posteri = empty( (ss,N) )
+        xhat_a_posteriori = empty( (ss,N) )
         xhat_smoothed = empty( (ss,N) )
         Sigma_a_priori = [None]*N
-        Sigma_a_posteri = [None]*N
+        Sigma_a_posteriori = [None]*N
         Sigma_smoothed = [None]*N
         Sigma_cross = [None]*N
         Sigma_cross_smoothed = [None]*N
@@ -152,11 +152,11 @@ Digalakis, Rohlicek and Ostendorf, 'ML Estimation of a stochastic
                 # 15f, update covariance
                 Sigma_a_posteri[k] = Sigma_a_priori[k] - K_k*Sigma_e_k*K_k.T
             else:
-                xhat_a_posteri[:,k] = xhat_a_priori[:,k]
-                Sigma_a_posteri[k] = Sigma_a_priori[k]
+                xhat_a_posteriori[:,k] = xhat_a_priori[:,k]
+                Sigma_a_posteriori[k] = Sigma_a_priori[k]
 
             if k>=1:
-                Sigma_cross[k] = (I-K_k*H)*F*Sigma_a_posteri[k-1] # 15g
+                Sigma_cross[k] = (I-K_k*H)*F*Sigma_a_posteriori[k-1] # 15g
             if (k+1)<N:
                 # predictions (calculation of a priori)
                 # 15b, predict state
@@ -166,15 +166,15 @@ Digalakis, Rohlicek and Ostendorf, 'ML Estimation of a stochastic
 
         if mode=='forward_only':
             # return as arrays (not matrices)
-            xfilt = numpy.array(xhat_a_posteri.T)
+            xfilt = numpy.array(xhat_a_posteriori.T)
             Vfilt = numpy.zeros((N,ss,ss))
             for k in range(N):
-                Vfilt[k,:,:] = Sigma_a_posteri[k]
+                Vfilt[k,:,:] = Sigma_a_posteriori[k]
             return xfilt, Vfilt
 
         # initialize
-        xhat_smoothed[:,-1] = xhat_a_posteri[:,-1]
-        Sigma_smoothed[-1] = Sigma_a_posteri[-1]
+        xhat_smoothed[:,-1] = xhat_a_posteriori[:,-1]
+        Sigma_smoothed[-1] = Sigma_a_posteriori[-1]
 
         # backward recursions
         for k in range(N-1,-1,-1):
@@ -189,9 +189,9 @@ Digalakis, Rohlicek and Ostendorf, 'ML Estimation of a stochastic
                     Sigma_smoothed[k] - Sigma_a_priori[k])*A_k.T
             else:
                 # with inspiration from KPM's smooth_update
-                x_pred = F*xhat_a_posteri[:,k-1]
-                #x_pred = xhat_a_posteri[:,k-1]*F.T
-                Sigma_pred = F*Sigma_a_posteri[k-1]*F.T + Q
+                x_pred = F*xhat_a_posteriori[:,k-1]
+                #x_pred = xhat_a_posteriori[:,k-1]*F.T
+                Sigma_pred = F*Sigma_a_posteriori[k-1]*F.T + Q
 
                 A_k = Sigma_a_posteri[k-1]*F.T*inv(Sigma_pred)
                 xhat_smoothed[:,k-1] = xhat_a_posteri[:,k-1] + A_k*(
@@ -344,8 +344,8 @@ class KalmanFilter:
 
         # These 2 attributes are the only state that changes during
         # filtering:
-        self.xhat_k1 = initial_x # a posteri state estimate from step (k-1)
-        self.P_k1 = initial_P    # a posteri error estimate from step (k-1)
+        self.xhat_k1 = initial_x # a posteriori state estimate from step (k-1)
+        self.P_k1 = initial_P    # a posteriori error estimate from step (k-1)
 
         self.ss = self.A.shape[0] # ndim in state space
         self.os = self.C.shape[0] # ndim in observation space
@@ -392,7 +392,7 @@ class KalmanFilter:
             ############################################
             #          incorporate observation
 
-            # calculate a posteri state estimate
+            # calculate a posteriori state estimate
 
             # calculate Kalman gain
             Knumerator = dot(Pminus,self.CT)
@@ -404,7 +404,7 @@ class KalmanFilter:
 
             one_minus_KC = numpy.eye(self.ss)-dot(K,self.C)
 
-            # compute a posteri estimate of errors
+            # compute a posteriori estimate of errors
             P = dot(one_minus_KC,Pminus)
         else:
             # no observation
