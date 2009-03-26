@@ -1,5 +1,4 @@
 from __future__ import division
-import sets
 import numpy
 import numpy.matlib
 linalg = numpy.linalg
@@ -509,8 +508,8 @@ def kalman_smoother(y,A,C,Q,R,init_x,init_V,valid_data_idx=None,
             y[invalid_cond] = numpy.nan # broadcast
         else:
             y = numpy.array(y,copy=True)
-            valid_data_idx = sets.Set(valid_data_idx)
-            all_idx = sets.Set(range(len(y)))
+            valid_data_idx = set(valid_data_idx)
+            all_idx = set(range(len(y)))
             bad_idx = list(all_idx - valid_data_idx)
             for i in bad_idx:
                 y[i] = numpy.nan # broadcast
