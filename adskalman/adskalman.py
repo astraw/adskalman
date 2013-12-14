@@ -384,7 +384,7 @@ class KalmanFilter:
         inv = numpy.linalg.inv
 
         missing_data = False
-        if y is None or numpy.all( numpy.isnan( y )):
+        if y is None or numpy.any( numpy.isnan( y )):
             missing_data = True
 
         if not missing_data:
