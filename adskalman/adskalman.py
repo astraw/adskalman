@@ -334,12 +334,11 @@ Digalakis, Rohlicek and Ostendorf, 'ML Estimation of a stochastic
         Vsmooth[k,:,:] = Sigma_smoothed[k]
     return xsmooth, Vsmooth, F, H, Q, R
 
-class KalmanFilter:
-    def __init__(self,A,C,Q,R,initial_x,initial_P):
+class VariableObservationNoiseKalmanFilter:
+    def __init__(self,A,C,Q,initial_x,initial_P):
         self.A = A # process update model
         self.C = C # observation model
         self.Q = Q # process covariance matrix
-        self.R = R # measurement covariance matrix
 
         # These 2 attributes are the only state that changes during
         # filtering:
@@ -354,10 +353,10 @@ class KalmanFilter:
         if len(initial_x)!=self.ss:
             raise ValueError( 'initial_x must be a vector with ss components' )
 
-    def step(self,y=None,isinitial=False,full_output=False):
+    def step(self,y=None,isinitial=False,full_output=False,**kw):
         xhatminus, Pminus = self.step1__calculate_a_priori(isinitial=isinitial)
         return self.step2__calculate_a_posteri(xhatminus, Pminus, y=y,
-                                               full_output=full_output)
+                                               full_output=full_output,**kw)
 
     def step1__calculate_a_priori(self,isinitial=False):
         dot = numpy.dot # shorthand
@@ -376,10 +375,12 @@ class KalmanFilter:
         return xhatminus, Pminus
 
     def step2__calculate_a_posteri(self,xhatminus,Pminus,y=None,
-                                   full_output=False):
+                                   full_output=False,R=None):
         """
         y represents the observation for this time-step
         """
+        if R is None:
+            raise ValueError('R cannot be None')
         dot = numpy.dot # shorthand
         inv = numpy.linalg.inv
 
@@ -395,7 +396,7 @@ class KalmanFilter:
 
             # calculate Kalman gain
             Knumerator = dot(Pminus,self.CT)
-            Kdenominator = dot(dot(self.C,Pminus),self.CT)+self.R
+            Kdenominator = dot(dot(self.C,Pminus),self.CT)+R
             K = dot(Knumerator,inv(Kdenominator)) # Kalman gain
 
             residuals = y-dot(self.C,xhatminus) # error/innovation
@@ -432,16 +433,39 @@ class KalmanFilter:
         else:
             return xhat, P
 
+class KalmanFilter(VariableObservationNoiseKalmanFilter):
+    def __init__(self,A,C,Q,R,initial_x,initial_P):
+        self.R = R # measurement covariance matrix
+        VariableObservationNoiseKalmanFilter.__init__(
+            self,A=A,C=C,Q=Q,initial_x=initial_x,initial_P=initial_P)
+    def step2__calculate_a_posteri(self,xhatminus,Pminus,y=None,
+                                   full_output=False):
+        return VariableObservationNoiseKalmanFilter.step2__calculate_a_posteri(
+            self, xhatminus=xhatminus, Pminus=Pminus, y=y, full_output=full_output,
+            R=self.R)
+
 def kalman_filter(y,A,C,Q,R,init_x,init_V,full_output=False):
     T = len(y)
     ss = len(A)
+    R = numpy.array(R)
 
     for arr in (A,C,Q,R):
         if numpy.any( numpy.isnan(arr) ):
             raise ValueError(
                 "cannot do Kalman filtering with nan values in parameters")
 
-    kfilt = KalmanFilter(A,C,Q,R,init_x,init_V)
+    if not R.ndim in (2,3):
+        raise ValueError("R not 2 or 3 dimensions but %d"%R.ndim)
+
+    if R.ndim==2:
+        kfilt = KalmanFilter(A,C,Q,R,init_x,init_V)
+    else:
+        assert R.ndim==3
+        if R.shape[0] != T:
+            raise ValueError(
+                'Per-observation noise must have same length as observations')
+        kfilt = VariableObservationNoiseKalmanFilter(A,C,Q,init_x,init_V)
+
     # Forward pass
     xfilt = numpy.zeros((T,ss))
     Vfilt = numpy.zeros((T,ss,ss))
@@ -452,17 +476,21 @@ def kalman_filter(y,A,C,Q,R,init_x,init_V,full_output=False):
     for i in range(T):
         isinitial = i==0
         y_i = y[i]
+        if R.ndim==3:
+            kw = dict(R=R[i])
+        else:
+            kw = {}
 
         if full_output:
             xfilt_i, Vfilt_i, LL, VVfilt_i = kfilt.step(y=y_i,
                                                         isinitial=isinitial,
-                                                        full_output=True)
+                                                        full_output=True,**kw)
             VVfilt[i] = VVfilt_i
             loglik += LL
         else:
             xfilt_i, Vfilt_i = kfilt.step(y=y_i,
                                           isinitial=isinitial,
-                                          full_output=False)
+                                          full_output=False,**kw)
         xfilt[i] = xfilt_i
         Vfilt[i] = Vfilt_i
 
