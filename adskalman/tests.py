@@ -374,8 +374,8 @@ class TestKalman(unittest.TestCase):
         # measurement covariance
         R = Rsigma*numpy.eye(2)
 
-        x = numpy.array([0,0,0,0])
-        x += Qsigma*numpy.random.standard_normal(x.shape)
+        x = numpy.array([0,0,0,0],dtype=numpy.float)
+        x += Qsigma*numpy.random.standard_normal(size=x.shape)
 
         kf = adskalman.KalmanFilter(A,C,Q,R,x,Q)
         y = numpy.dot(C,x)
