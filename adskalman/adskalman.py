@@ -1,4 +1,8 @@
+from __future__ import absolute_import
 from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
 import numpy
 import numpy.matlib
 linalg = numpy.linalg
@@ -118,9 +122,9 @@ Digalakis, Rohlicek and Ostendorf, 'ML Estimation of a stochastic
     previous_loglik = -numpy.inf
     for iter_num in range(EM_max_iter):
         if 1 and mode=='EM':
-            print 'previous_loglik',previous_loglik
-            print
-            print 'iter_num',iter_num
+            print('previous_loglik',previous_loglik)
+            print()
+            print('iter_num',iter_num)
 
         # pre-allocate matrices
         xhat_a_priori = empty( (ss,N) )
@@ -234,17 +238,17 @@ Digalakis, Rohlicek and Ostendorf, 'ML Estimation of a stochastic
                     yk_xkT = H*tmp
 
                 if 0:# or not have_observation:
-                    print
-                    print k, have_observation
-                    print 'numpy.isnan(y[:,k])',numpy.isnan(y[:,k])
-                    print 'numpy.any(numpy.isnan(y[:,k]))',numpy.any(
-                        numpy.isnan(y[:,k]))
-                    print 'tmp',tmp
-                    print 'y[:,k]',y[:,k]
-                    print 'x[:,k]',x[:,k]
-                    print 'H',H
-                    print ' yk_ykT\n'+str(yk_ykT)
-                    print ' yk_xkT\n'+str(yk_xkT)
+                    print()
+                    print(k, have_observation)
+                    print('numpy.isnan(y[:,k])',numpy.isnan(y[:,k]))
+                    print('numpy.any(numpy.isnan(y[:,k]))',numpy.any(
+                        numpy.isnan(y[:,k])))
+                    print('tmp',tmp)
+                    print('y[:,k]',y[:,k])
+                    print('x[:,k]',x[:,k])
+                    print('H',H)
+                    print(' yk_ykT\n'+str(yk_ykT))
+                    print(' yk_xkT\n'+str(yk_xkT))
 
                 if k==0:
                     y_yT = yk_ykT
@@ -254,8 +258,8 @@ Digalakis, Rohlicek and Ostendorf, 'ML Estimation of a stochastic
                     y_xT += yk_xkT
 
                 if 0:
-                    print ' y_yT\n'+str(y_yT)
-                    print ' y_xT\n'+str(y_xT)
+                    print(' y_yT\n'+str(y_yT))
+                    print(' y_xT\n'+str(y_xT))
 
         Gamma1 = 1/(N+1)* x*x.T # 11a
         Gamma2 = 1/N    * x[:,1:]*x[:,1:].T # 11b
@@ -265,13 +269,13 @@ Digalakis, Rohlicek and Ostendorf, 'ML Estimation of a stochastic
         Gamma6 = 1/(N+1)* y_xT # 11f
 
         if 1:
-            print 'y_yT',y_yT
-            print 'y_xT',y_xT
-            print 'Gamma4',Gamma4
-            print 'Gamma3',Gamma3
-            print 'inv(Gamma3)',inv(Gamma3)
-            print 'Gamma5',Gamma5
-            print 'Gamma6',Gamma6
+            print('y_yT',y_yT)
+            print('y_xT',y_xT)
+            print('Gamma4',Gamma4)
+            print('Gamma3',Gamma3)
+            print('inv(Gamma3)',inv(Gamma3))
+            print('Gamma5',Gamma5)
+            print('Gamma6',Gamma6)
         # now estimate new matrices
         Fhat = Gamma4*inv(Gamma3) # 10a
         Hhat = Gamma6*inv(Gamma1) # 10b
@@ -284,21 +288,21 @@ Digalakis, Rohlicek and Ostendorf, 'ML Estimation of a stochastic
         invQ = inv(Qhat)
         logdetR = log(abs(det(Rhat)))
         if 1:
-            print 'F',Fhat
-            print 'H',Hhat
+            print('F',Fhat)
+            print('H',Hhat)
 
-            print 'Q',Qhat
-            print 'R',Rhat
-            print 'inv(R)',inv(Rhat)
+            print('Q',Qhat)
+            print('R',Rhat)
+            print('inv(R)',inv(Rhat))
         invR = inv(Rhat)
 
         if 1:
-            print det(Qhat)
-            print 'logdetQ',logdetQ
-            print 'invQ',invQ
-            print 'R',Rhat
-            print 'logdetR',logdetR
-            print 'invR',invR
+            print(det(Qhat))
+            print('logdetQ',logdetQ)
+            print('invQ',invQ)
+            print('R',Rhat)
+            print('logdetR',logdetR)
+            print('invR',invR)
         ll1 = 0
         for k in range(1,N):
             # log likelihood of x_k given x_{k-1}
@@ -711,8 +715,8 @@ def learn_kalman(data, A, C, Q, R, initx, initV,
 
     while (not converged) and (num_iter < max_iter):
         if verbose>1:
-            print
-            print 'num_iter',num_iter
+            print()
+            print('num_iter',num_iter)
         # E step
         delta = numpy.zeros((os,ss))
         gamma = numpy.zeros((ss,ss))
@@ -738,16 +742,16 @@ def learn_kalman(data, A, C, Q, R, initx, initV,
             loglik += loglik_t
         LL.append( loglik )
         if verbose:
-            print 'iteration %d, loglik = %f'%(num_iter, loglik)
+            print('iteration %d, loglik = %f'%(num_iter, loglik))
         num_iter += 1
 
         # M step
         Tsum1 = Tsum-N
         A = numpy.dot(beta,inv(gamma1))
         if verbose>1:
-            print 'beta',beta
-            print 'inv(gamma1)',inv(gamma1)
-            print 'A',A
+            print('beta',beta)
+            print('inv(gamma1)',inv(gamma1))
+            print('A',A)
         Q = (gamma2 - numpy.dot(A,beta.T))/Tsum1
         if diagQ:
             Q = numpy.diag( numpy.diag(Q) )
@@ -759,7 +763,7 @@ def learn_kalman(data, A, C, Q, R, initx, initV,
         initx = x1sum/N
         initV = P1sum/N - numpy.dot(initx[:,numpy.newaxis],
                                     initx[:,numpy.newaxis].T)
-        if len(constr_fun_dict.keys()):
+        if len(list(constr_fun_dict.keys())):
             A = constr_fun_dict.get('A',lambda orig: orig)(A)
             C = constr_fun_dict.get('C',lambda orig: orig)(C)
             Q = constr_fun_dict.get('Q',lambda orig: orig)(Q)
@@ -777,7 +781,7 @@ def learn_kalman(data, A, C, Q, R, initx, initV,
                 initx = initxlast
                 initV = initVlast
                 LL = LLlast
-                print 'WARNING: likelihood decreasing! stopping!'
+                print('WARNING: likelihood decreasing! stopping!')
                 break
             else:
                 # save values in case likelihood decreases next iteration
