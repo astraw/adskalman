@@ -153,7 +153,7 @@ Digalakis, Rohlicek and Ostendorf, 'ML Estimation of a stochastic
                 # 15a, update state
                 xhat_a_posteriori[:,k] = xhat_a_priori[:,k] + K_k*e_k
                 # 15f, update covariance
-                Sigma_a_posteri[k] = Sigma_a_priori[k] - K_k*Sigma_e_k*K_k.T
+                Sigma_a_posteriori[k] = Sigma_a_priori[k] - K_k*Sigma_e_k*K_k.T
             else:
                 xhat_a_posteriori[:,k] = xhat_a_priori[:,k]
                 Sigma_a_posteriori[k] = Sigma_a_priori[k]
@@ -163,9 +163,9 @@ Digalakis, Rohlicek and Ostendorf, 'ML Estimation of a stochastic
             if (k+1)<N:
                 # predictions (calculation of a priori)
                 # 15b, predict state
-                xhat_a_priori[:,k+1] = F*xhat_a_posteri[:,k]
+                xhat_a_priori[:,k+1] = F*xhat_a_posteriori[:,k]
                 # 15h, predict covariance
-                Sigma_a_priori[k+1] = F*Sigma_a_posteri[k]*F.T + Q
+                Sigma_a_priori[k+1] = F*Sigma_a_posteriori[k]*F.T + Q
 
         if mode=='forward_only':
             # return as arrays (not matrices)
@@ -196,16 +196,16 @@ Digalakis, Rohlicek and Ostendorf, 'ML Estimation of a stochastic
                 #x_pred = xhat_a_posteriori[:,k-1]*F.T
                 Sigma_pred = F*Sigma_a_posteriori[k-1]*F.T + Q
 
-                A_k = Sigma_a_posteri[k-1]*F.T*inv(Sigma_pred)
-                xhat_smoothed[:,k-1] = xhat_a_posteri[:,k-1] + A_k*(
+                A_k = Sigma_a_posteriori[k-1]*F.T*inv(Sigma_pred)
+                xhat_smoothed[:,k-1] = xhat_a_posteriori[:,k-1] + A_k*(
                     xhat_smoothed[:,k] - x_pred)
-                Sigma_smoothed[k-1] = Sigma_a_posteri[k-1] + A_k*(
+                Sigma_smoothed[k-1] = Sigma_a_posteriori[k-1] + A_k*(
                     Sigma_smoothed[k] - Sigma_pred)*A_k.T # 16b
             if k>=1:
                 Sigma_cross_smoothed[k] = (Sigma_cross[k] +
                                            (Sigma_smoothed[k] -
-                                            Sigma_a_posteri[k])*inv(
-                    Sigma_a_posteri[k])*Sigma_cross[k]) # 16d
+                                            Sigma_a_posteriori[k])*inv(
+                    Sigma_a_posteriori[k])*Sigma_cross[k]) # 16d
 
         if mode=='smooth':
             # return as arrays (not matrices)
