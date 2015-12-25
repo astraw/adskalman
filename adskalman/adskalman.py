@@ -147,7 +147,7 @@ Digalakis, Rohlicek and Ostendorf, 'ML Estimation of a stochastic
                 Sigma_e_k = H*Sigma_a_priori[k]*H.T + R # 15e, covariance
                 K_k = Sigma_a_priori[k]*H.T*inv(Sigma_e_k) # 15d, Kalman gain
                 # 15a, update state
-                xhat_a_posteri[:,k] = xhat_a_priori[:,k] + K_k*e_k
+                xhat_a_posteriori[:,k] = xhat_a_priori[:,k] + K_k*e_k
                 # 15f, update covariance
                 Sigma_a_posteri[k] = Sigma_a_priori[k] - K_k*Sigma_e_k*K_k.T
             else:
