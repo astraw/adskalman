@@ -51,7 +51,7 @@ def gaussian_prob(x,m,C,use_log=False):
         return numpy.asscalar(densities.gauss_den(x,m,C,log=use_log))
     # Kevin Murphy's implementation
     m = numpy.atleast_1d(m)
-    assert len(x.shape)==1
+    assert x.ndim==1
     N=1
     d = x.shape[0]
     M = numpy.dot(m.T,numpy.ones((1,N))) # replicate mean across columns
