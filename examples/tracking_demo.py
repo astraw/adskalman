@@ -3,7 +3,7 @@
 
 # This code was ported from "tracking_demo.m"
 import numpy
-import adskalman
+import adskalman.adskalman as adskalman
 
 ss = 4 # state size
 os = 2 # observation size
