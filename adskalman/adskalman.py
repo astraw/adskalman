@@ -336,6 +336,15 @@ Digalakis, Rohlicek and Ostendorf, 'ML Estimation of a stochastic
 
 class VariableObservationNoiseKalmanFilter:
     def __init__(self,A,C,Q,initial_x,initial_P):
+        ss = len(A) # ndim in state space
+        os = len(C) # ndim in observation space
+
+        assert A.shape == (ss,ss)
+        assert C.shape == (os,ss)
+        assert Q.shape == (ss,ss)
+        assert initial_x.shape == (ss,)
+        assert initial_P.shape == (ss,ss)
+
         self.A = A # process update model
         self.C = C # observation model
         self.Q = Q # process covariance matrix
@@ -345,8 +354,8 @@ class VariableObservationNoiseKalmanFilter:
         self.xhat_k1 = initial_x # a posteriori state estimate from step (k-1)
         self.P_k1 = initial_P    # a posteriori error estimate from step (k-1)
 
-        self.ss = self.A.shape[0] # ndim in state space
-        self.os = self.C.shape[0] # ndim in observation space
+        self.ss = ss
+        self.os = os
         self.AT = self.A.T
         self.CT = self.C.T
 
@@ -438,6 +447,8 @@ class KalmanFilter(VariableObservationNoiseKalmanFilter):
         self.R = R # measurement covariance matrix
         VariableObservationNoiseKalmanFilter.__init__(
             self,A=A,C=C,Q=Q,initial_x=initial_x,initial_P=initial_P)
+        assert R.shape == (self.os,self.os)
+
     def step2__calculate_a_posteri(self,xhatminus,Pminus,y=None,
                                    full_output=False):
         return VariableObservationNoiseKalmanFilter.step2__calculate_a_posteri(
