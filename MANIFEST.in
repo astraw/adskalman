@@ -1,0 +1,4 @@
+include LICENSE.txt
+include .gitignore
+include examples/*
+include stdeb.cfg
