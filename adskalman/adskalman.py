@@ -204,7 +204,7 @@ def kalman_filter(y, A, C, Q, R, init_x, init_V, full_output=False):
     ss = len(A)
     R = numpy.array(R)
 
-    for arr in (A, C, Q, R):
+    for arr in (A, C, Q):
         if numpy.any(numpy.isnan(arr)):
             raise ValueError(
                 "cannot do Kalman filtering with nan values in parameters")
