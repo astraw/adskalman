@@ -125,7 +125,7 @@ class VariableObservationNoiseKalmanFilter:
         return xhatminus, Pminus
 
     def _compute_prediction(self, xhatminus):
-        return dot(self.C, xhatminus)
+        return numpy.dot(self.C, xhatminus)
 
     def step2__calculate_a_posteri(self, xhatminus, Pminus, y=None,
                                    full_output=False, R=None):
