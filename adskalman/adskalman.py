@@ -124,6 +124,9 @@ class VariableObservationNoiseKalmanFilter:
 
         return xhatminus, Pminus
 
+    def _compute_prediction(self, xhatminus):
+        return dot(self.C, xhatminus)
+
     def step2__calculate_a_posteri(self, xhatminus, Pminus, y=None,
                                    full_output=False, R=None):
         """
@@ -149,7 +152,7 @@ class VariableObservationNoiseKalmanFilter:
             Kdenominator = dot(dot(self.C, Pminus), self.CT) + R
             K = dot(Knumerator, inv(Kdenominator))  # Kalman gain
 
-            residuals = y - dot(self.C, xhatminus)  # error/innovation
+            residuals = y - self._compute_prediction(xhatminus)  # error/innovation
             xhat = xhatminus + dot(K, residuals)
 
             one_minus_KC = numpy.eye(self.ss) - dot(K, self.C)
@@ -198,6 +201,41 @@ class KalmanFilter(VariableObservationNoiseKalmanFilter):
             self, xhatminus=xhatminus, Pminus=Pminus, y=y, full_output=full_output,
             R=self.R)
 
+class KalmanFilter_NonlinearObservation(KalmanFilter):
+    def __init__(self, A, observation_function, Q, R, initial_x, initial_P, delta = 1e-5):
+        self.delta = delta
+        self.observation_function = observation_function
+        C0 = linearize_at(observation_function,initial_x)
+        KalmanFilter.__init__(
+            self, A=A, C=C0, Q=Q, R=R, initial_x=initial_x, initial_P=initial_P)
+        assert R.shape == (self.os, self.os)
+
+    def _compute_prediction(self, xhatminus):
+        result = self.observation_function(xhatminus)
+        assert(result.ndim == 2)
+        assert(result.shape[1] == 1)
+        return result[:,0] # drop dimension
+
+    def step2__calculate_a_posteri(self, xhatminus, Pminus, y=None,
+                                   full_output=False):
+
+        self.C = linearize_at(self.observation_function, xhatminus, delta=self.delta)
+        self.CT = self.C.T
+
+        return KalmanFilter.step2__calculate_a_posteri(
+            self, xhatminus=xhatminus, Pminus=Pminus, y=y, full_output=full_output)
+
+def linearize_at(f, x, delta = 1e-5):
+    f0 = f(x)
+    mat = []
+    for i in range(len(x)):
+        dxi = numpy.zeros((len(x),))
+        dxi[i] = delta
+        fi = f(x+dxi)
+        dF_dxi = (fi-f0)/delta
+        mat.append(dF_dxi[:,0])
+    mat = numpy.array(mat).T
+    return mat
 
 def kalman_filter(y, A, C, Q, R, init_x, init_V, full_output=False):
     T = len(y)
