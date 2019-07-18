@@ -342,13 +342,13 @@ def kalman_smoother(y, A, C, Q, R, init_x, init_V, valid_data_idx=None,
         inv = numpy.linalg.inv
 
         xpred = dot(A, xfilt)
-        Vpred = dot(A, numpy.dot(Vfilt, A.T)) + Q
-        J = dot(Vfilt, numpy.dot(A.T, inv(Vpred)))  # smoother gain matrix
+        Vpred = dot(A, dot(Vfilt, A.T)) + Q
+        J = dot(Vfilt, dot(A.T, inv(Vpred)))  # smoother gain matrix
         xsmooth = xfilt + dot(J, xsmooth_future - xpred)
         Vsmooth = Vfilt + dot(J, dot(Vsmooth_future - Vpred, J.T))
-        VVsmooth_future = VVfilt_future + numpy.dot(
+        VVsmooth_future = VVfilt_future + dot(
             (Vsmooth_future - Vfilt_future),
-            numpy.dot(inv(Vfilt_future), VVfilt_future))
+            dot(inv(Vfilt_future), VVfilt_future))
         return xsmooth, Vsmooth, VVsmooth_future
 
     T = len(y)
