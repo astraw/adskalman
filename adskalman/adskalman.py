@@ -337,7 +337,7 @@ def kalman_smoother(y, A, C, Q, R, init_x, init_V, valid_data_idx=None,
                 y[i] = numpy.nan  # broadcast
 
     def smooth_update(xsmooth_future, Vsmooth_future, xfilt, Vfilt,
-                      Vfilt_future, VVfilt_future, A, Q, full_output=False):
+                      Vfilt_future, VVfilt_future, A, Q):
         dot = numpy.dot
         inv = numpy.linalg.inv
 
@@ -376,7 +376,7 @@ def kalman_smoother(y, A, C, Q, R, init_x, init_V, valid_data_idx=None,
                                                          Vfilt[t + 1, :, :],
                                                          VVfilt[t + 1, :, :],
                                                          A, Q,
-                                                         full_output=full_output)
+                                                         )
         xsmooth[t, :] = xsmooth_t
         Vsmooth[t, :, :] = Vsmooth_t
         VVsmooth[t + 1, :, :] = VVsmooth_t
