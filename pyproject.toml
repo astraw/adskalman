@@ -1,0 +1,16 @@
+[project]
+name = "adskalman"
+version = "0.3.12"                                                       # keep in sync with adskalman/version.py
+description = "Kalman filtering routine"
+requires-python = ">= 3.8"
+license = "BSD-3-Clause"                                                 # https://spdx.org/licenses/BSD-3-Clause.html
+authors = [{ name = "Andrew Straw", email = "strawman@astraw.com" }]
+maintainers = [{ name = "Andrew Straw", email = "strawman@astraw.com" }]
+
+urls.homepage = "https://github.com/astraw/adskalman"
+
+dependencies = ["numpy"]
+
+[build-system]
+requires = ["setuptools >= 61"]
+build-backend = "setuptools.build_meta"
