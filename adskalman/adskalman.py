@@ -4,7 +4,7 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import numpy
-import numpy.matlib
+
 linalg = numpy.linalg
 # import scikits.learn.machine.em.densities as densities
 
